@@ -1,0 +1,47 @@
+name: Deploy Godzinki
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Set GitHub Pages base path
+        env:
+          REPOSITORY: ${{ github.event.repository.name }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          repo = os.environ["REPOSITORY"]
+          root_site = repo.lower() == (os.environ["OWNER"] + ".github.io").lower()
+          base = "/" if root_site else "/" + repo + "/"
+          p = Path("wwwroot/index.html")
+          p.write_text(p.read_text().replace('<base href="/">', '<base href="' + base + '">'))
+          PY
+      - run: dotnet publish -c Release -o publish
+      - run: touch publish/wwwroot/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: publish/wwwroot
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
+

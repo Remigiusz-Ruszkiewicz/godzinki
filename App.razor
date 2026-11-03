@@ -1,0 +1,150 @@
+@inject DataStore Store
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+<PageTitle>Godzinki — Twój czas, Twoje wyniki</PageTitle>
+@if (!initialized) {
+ <div class="boot"><div class="brand-icon">g.</div><h1>Godzinki</h1><p>Przygotowuję Twój pulpit…</p></div>
+} else if (!Store.SignedIn) {
+ <main class="auth-shell">
+  <section class="auth-story">
+   <a class="brand" href="./"><span class="brand-icon">g.</span>godzinki<span class="brand-dot">®</span></a>
+   <div><span class="eyebrow light">TWÓJ CZAS MA ZNACZENIE</span><h1>Małe wpisy.<br>Duży obraz<br><em>Twojej pracy.</em></h1><p>Godziny, zarobki i cele w jednym miejscu.<br>Na telefonie, w domu i po pracy.</p></div>
+   <div class="story-foot"><span>01 / Czas</span><span>02 / Wyniki</span><span>03 / Cele</span></div>
+  </section>
+  <section class="auth-form"><div class="auth-inner">
+   <span class="eyebrow">DOBRZE CIĘ WIDZIEĆ</span><h2>@(authMode=="login"?"Twój dzień zaczyna się tutaj.":"Twoje własne godzinki.")</h2>
+   <p class="muted">@(authMode=="login"?"Zaloguj się do swojej historii pracy.":"Utwórz konto aplikacji. Jest ono osobne od konta panelu Supabase.")</p>
+   @if(!string.IsNullOrEmpty(error)){<div class="alert error" role="alert">@error</div>}
+   @if(!string.IsNullOrEmpty(notice)){<div class="alert" role="status">@notice</div>}
+   <form @onsubmit="Auth" @onsubmit:preventDefault>
+    <label>E-mail<input type="email" autocomplete="email" required @bind="email" @bind:event="oninput" placeholder="twoj@email.pl" /></label>
+    <label>Hasło<input type="password" autocomplete="@(authMode=="login"?"current-password":"new-password")" required minlength="8" @bind="password" @bind:event="oninput" placeholder="Minimum 8 znaków" /></label>
+    <button class="primary wide" disabled="@busy" type="submit">@(busy?"Chwileczkę…":authMode=="login"?"Zaloguj się →":"Utwórz konto →")</button>
+   </form>
+   <button class="text-button wide" @onclick='()=>{authMode=authMode=="login"?"register":"login";error="";notice="";}'>@(authMode=="login"?"Pierwszy raz? Utwórz konto":"Masz już konto? Zaloguj się")</button>
+   <div class="divider"><span>najpierw rozejrzyj się</span></div>
+   <button class="secondary wide" @onclick="Demo">Otwórz wersję demonstracyjną ↗</button>
+   <p class="fine">Demo zawiera fikcyjne dane i nie zapisuje zmian w Twojej bazie.</p>
+  </div></section>
+ </main>
+} else {
+ <div class="app-shell">
+  <aside class="sidebar">
+   <a class="brand" href="./"><span class="brand-icon">g.</span>godzinki</a>
+   <span class="nav-caption">TWOJA PRZESTRZEŃ</span>
+   <nav aria-label="Nawigacja główna">
+    @foreach(var p in pages){<button class="nav-item @(page==p?"active":"")" @onclick="()=>ChangePage(p)"><span class="nav-symbol">@(p switch{"Pulpit"=>"◈","Kalendarz"=>"▦","Rozliczenia"=>"↗","Urlopy"=>"☼","Cele"=>"◎",_=>"⚙"})</span>@p</button>}
+   </nav>
+   <div class="sidebar-bottom"><div class="small-note">Każda godzina<br>buduje Twój wynik.</div><div class="profile"><span class="avatar">@Initials</span><div><strong>@(Store.Demo?"Tryb demo":"Twoje konto")</strong><small>@(Store.Demo?"Dane przykładowe":"Prywatna przestrzeń")</small></div></div><button class="text-button" @onclick="Logout">@(Store.Demo?"Wyjdź z demo":"Wyloguj się")</button></div>
+  </aside>
+  <main class="workspace">
+   <header class="topbar"><div><span class="breadcrumb">Moja przestrzeń <span>/</span> @(page)</span><h1>@(page=="Pulpit"?"Twój wysiłek. Twoje wyniki.":page)</h1></div><div class="top-actions"><span class="status-dot">@(Store.Demo?"Wersja demo":"Połączono z kontem")</span><button class="icon-button" title="Odśwież dane" aria-label="Odśwież dane" disabled="@busy" @onclick='()=>Act(Store.Reload)'>↻</button></div></header>
+   @if(Store.Demo){<div class="demo-banner"><span>✦</span> Rozglądasz się w demo. Liczby są przykładowe, zmiany znikną po odświeżeniu.</div>}
+   @if(Store.LoadError is not null){<div class="alert error" role="alert">@Store.LoadError <button @onclick='()=>Act(Store.Reload)' class="text-button">Spróbuj ponownie</button></div>}
+   @if(!string.IsNullOrEmpty(error)&&modal==""){<div class="alert error" role="alert">@error</div>}
+   @if(!string.IsNullOrEmpty(notice)){<div class="toast" role="status">@notice</div>}
+   <div class="toolbar"><div class="month-picker"><button aria-label="Poprzedni miesiąc" @onclick="()=>MoveMonth(-1)">‹</button><span>@MonthName</span><button aria-label="Następny miesiąc" @onclick="()=>MoveMonth(1)">›</button></div><div class="button-row"><button class="secondary" @onclick="()=>OpenExtra()">＋ Praca dodatkowa</button><button class="primary" @onclick="()=>OpenWork()">＋ Dodaj dzień</button></div></div>
+   @if(page=="Pulpit"){
+    <section class="overview">
+     <article class="hero-card"><div class="hero-top"><span class="eyebrow light">@(Current?.Status=="approved"?"ZATWIERDZONE NETTO":"SZACUNEK MIESIĄCA NETTO")</span><span class="pill">PLN</span></div><div class="big-money">@Money(Estimate)</div><p>@(Current is not null?"Rozliczenie zachowuje zatwierdzone godziny i stawki.":"Pełna podstawa + dotychczasowy czas dodatkowy. To nie jest prognoza końca miesiąca.")</p><div class="hero-bottom"><div><small>Podstawa</small><strong>@Money(Current?.BaseNetSnapshot??CurrentRate?.BaseNet)</strong></div><div><small>@(Current is null?"Dodatkowo · szacunek":"Ponad podstawę")</small><strong>@Money(Estimate-(Current?.BaseNetSnapshot??CurrentRate?.BaseNet))</strong></div><button aria-label="Przejdź do rozliczenia" @onclick='()=>ChangePage("Rozliczenia")'>↗</button></div></article>
+     <article class="metric-card"><span class="metric-icon">◷</span><span class="eyebrow">ZAPISANY CZAS</span><strong>@Duration(TotalMinutes)</strong><p>@MonthDays.Count() dni z wpisem<br>+ @Duration(ExtraMinutes) pracy dodatkowej</p><div class="metric-footer">Saldo w firmie <b>@Duration(CompanyMinutes)</b></div></article>
+     <article class="metric-card"><span class="metric-icon sand">↗</span><span class="eyebrow">ZATWIERDZONE W @month.Year</span><strong>@Money(YearNet)</strong><p>Suma zatwierdzonych rozliczeń.<br>Twój postęp, miesiąc po miesiącu.</p><div class="metric-footer">Urlop do wykorzystania <b>@LeaveBalance.ToString("0.##") dni</b></div></article>
+    </section>
+    @if(CurrentRate is null&&Current is null){<div class="alert">Zacznij od swojej podstawy i stawki za nadgodziny. <button class="text-button" @onclick="()=>OpenRate()">Ustaw stawki →</button></div>}
+    <section class="dashboard-grid">
+     <article class="panel"><div class="panel-heading"><div><span class="eyebrow">SZERSZA PERSPEKTYWA</span><h2>Tak rośnie Twój wynik</h2></div><span class="tag">6 miesięcy · netto</span></div>
+      <div class="chart" role="img" aria-label="Zatwierdzone zarobki w ostatnich sześciu miesiącach">
+       @foreach(var item in History){<div class="chart-column"><span>@(item.Value>0?item.Value.ToString("N0"):"—")</span><div class="bar-track"><div class="bar @(item.Month==month?"current":"")" style="height:@Percent(item.Value,ChartMax)"></div></div><small>@item.Month.ToString("MMM")</small></div>}
+      </div><p class="fine">Tylko zatwierdzone rozliczenia. Brak słupka oznacza brak zatwierdzonej kwoty.</p>
+     </article>
+     <article class="panel goal-panel"><span class="eyebrow">MAŁE KROKI, KONKRETNY CEL</span><h2>Po co te godzinki?</h2>
+      @if(Store.Goals.Count==0){<div class="empty-small"><span>◎</span><p>Nadaj swoim liczbom kierunek.</p><button class="secondary" @onclick="()=>OpenGoal()">Dodaj pierwszy cel</button></div>}
+      @foreach(var g in Store.Goals.Take(2)){var value=GoalValue(g);<div class="goal-preview"><div><strong>@g.Name</strong><span>@Percent(value,g.TargetNet)</span></div><progress max="@g.TargetNet" value="@Math.Min(value,g.TargetNet)"></progress><small>@Money(value) z @Money(g.TargetNet)</small><p>Jeszcze @Money(Math.Max(0,g.TargetNet-value)) do celu.</p></div>}
+      <button class="text-button" @onclick='()=>ChangePage("Cele")'>Zobacz swoje cele →</button>
+     </article>
+    </section>
+    <section class="panel"><div class="panel-heading"><div><span class="eyebrow">DZIEŃ PO DNIU</span><h2>Ostatnie wpisy</h2></div><button class="text-button" @onclick='()=>ChangePage("Kalendarz")'>Otwórz kalendarz →</button></div>
+    @if(!MonthDays.Any()){<div class="empty">Jeszcze nie ma wpisów w tym miesiącu. Dodaj pierwszy dzień pracy.</div>}
+    @foreach(var d in MonthDays.OrderByDescending(x=>x.WorkDate).Take(4)){<button class="entry-row" @onclick="()=>OpenWork(d)"><span class="date-badge">@d.WorkDate.Day<small>@d.WorkDate.ToString("ddd")</small></span><span class="entry-info"><strong>@DayType(d.DayType)</strong><small>@(d.Notes??d.Category??"Twój dzień pracy")</small></span><span class="entry-time">@(d.WorkedMinutes is int m?Duration(m):"Brak czasu")</span><span class="balance @(Payroll.Overtime(d)<0?"negative":"")">@Duration(Payroll.Overtime(d))</span><span>↗</span></button>}
+    </section>
+   }
+   else if(page=="Kalendarz"){
+    <section class="panel"><div class="panel-heading"><div><span class="eyebrow">TWOJA EWIDENCJA</span><h2>Każdy dzień na swoim miejscu</h2></div><button class="secondary" @onclick="ExportCsv">Eksport CSV ↓</button></div>
+    <div class="calendar-grid">
+     @foreach(var dow in new[]{"Pon","Wt","Śr","Czw","Pt","Sob","Nd"}){<div class="weekday">@dow</div>}
+     @for(int i=0;i<((int)month.DayOfWeek+6)%7;i++){<div class="calendar-blank"></div>}
+     @for(int i=0;i<DateTime.DaysInMonth(month.Year,month.Month);i++){var date=month.AddDays(i);var d=Store.Days.FirstOrDefault(x=>x.WorkDate==date);var ex=Store.Extras.Where(x=>x.WorkDate==date).Sum(x=>x.Minutes);
+      <button aria-label="@($"Dzień {date:yyyy-MM-dd}")" class="calendar-day @(d is not null?"has-entry":"") @(date==DateOnly.FromDateTime(DateTime.Today)?"today":"")" @onclick="()=>OpenWork(d,date)"><span>@date.Day</span>@if(d is not null){<strong>@(d.WorkedMinutes is int m?Duration(m):DayType(d.DayType))</strong><small>@Duration(Payroll.Overtime(d)) saldo</small>}@if(ex>0){<small class="extra-tag">+ @Duration(ex)</small>}</button>
+     }
+    </div></section>
+    <section class="panel"><div class="panel-heading"><h2>Praca dodatkowa</h2><button class="text-button" @onclick="()=>OpenExtra()">＋ Dodaj wpis</button></div>
+    @if(!MonthExtras.Any()){<div class="empty">Praca w domu, po wyjściu z firmy lub przy dodatkowym projekcie pojawi się tutaj.</div>}
+    @foreach(var ex in MonthExtras.OrderByDescending(x=>x.WorkDate)){<div class="list-row"><span>@DayLabel(ex.WorkDate)</span><div class="grow"><strong>@(ex.ProjectName??"Praca dodatkowa")</strong><small>@ex.Notes</small></div><b>@Duration(ex.Minutes)</b><button class="text-button" @onclick="()=>OpenExtra(ex)">Edytuj</button><button class="text-button danger" @onclick='()=>AskDelete(ex,"extra_work")'>Usuń</button></div>}
+    </section>
+   }
+   else if(page=="Rozliczenia"){
+    <section class="settlement-grid"><article class="panel"><span class="eyebrow">CZAS → WYNAGRODZENIE</span><h2>Twoje rozliczenie miesiąca</h2>
+     <div class="summary-line"><span>Saldo w firmie</span><strong>@Duration(CompanyMinutes)</strong></div><div class="summary-line"><span>Praca dodatkowa</span><strong>@Duration(ExtraMinutes)</strong></div><div class="summary-line"><span>Proponowany czas do wypłaty</span><strong>@Duration(Math.Max(0,CompanyMinutes+ExtraMinutes))</strong></div>
+     <p class="fine">Przed zatwierdzeniem możesz zmienić czas, stawkę, premię i korektę. Ujemne saldo jest widoczne, ale propozycja wypłaty nie spada poniżej zera.</p>
+     @if(RateChanges){<div class="alert">W tym miesiącu zmieniła się stawka. Ustal właściwą kwotę rozliczenia ręcznie.</div>}
+     <button class="primary" @onclick="OpenSettlement">@(Current is null?"Przygotuj rozliczenie →":"Sprawdź / zmień rozliczenie →")</button>
+    </article><article class="hero-card"><span class="eyebrow light">@(Current is null?"JESZCZE NIE ZATWIERDZONO":"ZATWIERDZONE NETTO")</span><div class="big-money">@Money(Current?.TotalNet)</div><p>@(Current is null?"Najpierw sprawdź godziny i zatwierdź rozliczenie.":$"Do wypłaty zatwierdzono {Duration(Current.ApprovedMinutes??0)}.")</p><div class="summary-line"><span>Otrzymano</span><strong>@Money(PaidForMonth)</strong></div><div class="summary-line"><span>Pozostało</span><strong>@Money(Current is null?null:Math.Max(0,(Current.TotalNet??0)-PaidForMonth))</strong></div><button class="light-button" disabled="@(Current is null)" @onclick="OpenPayment">＋ Zapisz otrzymaną wypłatę</button></article></section>
+    <section class="panel"><h2>Wpłaty za ten miesiąc</h2>@if(Current is null || !Store.Payments.Any(x=>x.SettlementId==Current.Id)){<div class="empty">Wpisz kwotę, gdy pieniądze faktycznie do Ciebie trafią.</div>}
+    @foreach(var p in Store.Payments.Where(x=>x.SettlementId==Current?.Id)){<div class="list-row"><span>@DayLabel(p.PaidOn)</span><span class="grow">@p.Notes</span><strong>@Money(p.AmountNet)</strong><button class="text-button danger" @onclick='()=>AskDelete(p,"payments")'>Usuń</button></div>}</section>
+    <section class="panel"><h2>Historia rozliczeń</h2>@foreach(var s in Store.Settlements.OrderByDescending(x=>x.Month)){<button class="entry-row" @onclick="()=>{month=s.Month;OpenSettlement();}"><strong class="grow">@s.Month.ToString("MMMM yyyy")</strong><span>@Duration(s.ApprovedMinutes??0)</span><b>@Money(s.TotalNet)</b><span class="tag">@(s.Status=="approved"?"Zatwierdzone":"Szkic")</span></button>}</section>
+   }
+   else if(page=="Urlopy"){
+    <section class="overview two"><article class="hero-card"><span class="eyebrow light">TWÓJ CZAS DLA SIEBIE · @month.Year</span><div class="big-money">@LeaveBalance.ToString("0.##") <small>dni</small></div><p>Pozostały urlop według zapisanych przydziałów, przeniesień i wykorzystania.</p></article><article class="panel"><h2>Odpoczynek też jest w planie.</h2><p>Wpisz roczny limit, przenieś zaległe dni albo dodaj wykorzystany urlop. Przydział może być inny w każdym roku.</p><button class="primary" @onclick="()=>OpenLeave()">＋ Dodaj zmianę urlopu</button></article></section>
+    <section class="panel"><h2>Historia urlopu · @month.Year</h2>
+    @if(!Store.Leaves.Any(x=>x.EntitlementYear==month.Year)){<div class="empty">Dodaj przydział dni na ten rok, aby rozpocząć.</div>}
+    @foreach(var l in Store.Leaves.Where(x=>x.EntitlementYear==month.Year).OrderByDescending(x=>x.EffectiveDate)){<div class="list-row"><span>@DayLabel(l.EffectiveDate)</span><div class="grow"><strong>@Kind(l.Kind)</strong><small>@l.Notes</small></div><b>@l.DaysDelta.ToString("+0.##;-0.##") dni</b><button class="text-button" @onclick="()=>OpenLeave(l)">Edytuj</button><button class="text-button danger" @onclick='()=>AskDelete(l,"leave_ledger")'>Usuń</button></div>}
+    </section>
+   }
+   else if(page=="Cele"){
+    <div class="section-intro"><div><h2>Liczby z konkretnym celem.</h2><p class="muted">Śledź zatwierdzone zarobki lub otrzymane wypłaty. To cele przychodu, nie oszczędności.</p></div><button class="primary" @onclick="()=>OpenGoal()">＋ Nowy cel</button></div>
+    <section class="goals-grid">@if(Store.Goals.Count==0){<div class="panel empty">Dodaj pierwszy cel, który będzie Cię motywować.</div>}
+    @foreach(var g in Store.Goals){var value=GoalValue(g);<article class="panel"><span class="eyebrow">@(g.Basis=="paid"?"OTRZYMANE WYPŁATY":"ZATWIERDZONE ROZLICZENIA")</span><h2>@g.Name</h2><p class="muted">@g.StartsOn.ToString("dd.MM.yyyy") – @g.EndsOn.ToString("dd.MM.yyyy")</p><div class="goal-amount">@Money(value)</div><progress max="@g.TargetNet" value="@Math.Min(value,g.TargetNet)"></progress><div class="summary-line"><span>Cel: @Money(g.TargetNet)</span><b>@Percent(value,g.TargetNet)</b></div><div class="button-row"><button class="text-button" @onclick="()=>OpenGoal(g)">Edytuj cel</button><button class="text-button danger" @onclick='()=>AskDelete(g,"goals")'>Usuń</button></div></article>}
+    </section>
+   }
+   else if(page=="Ustawienia"){
+    <section class="panel"><div class="panel-heading"><div><h2>Twoje konto</h2><p class="muted">@(Store.Demo?"Tryb demonstracyjny":Store.Session?.User.Email)</p></div><button class="secondary" @onclick="Logout">@(Store.Demo?"Wyjdź z demo":"Wyloguj się")</button></div></section>
+    <section class="panel"><div class="panel-heading"><div><span class="eyebrow">TWOJE WARUNKI</span><h2>Historia stawek netto</h2></div><button class="primary" @onclick="()=>OpenRate()">＋ Nowa stawka</button></div><p class="muted">Zapisuj podwyżki z datą obowiązywania. Zatwierdzone rozliczenia zachowują własne stawki.</p>
+    @foreach(var r in Store.Rates.OrderByDescending(x=>x.EffectiveFrom)){<div class="list-row"><span>Od @r.EffectiveFrom.ToString("dd.MM.yyyy")</span><div class="grow"><strong>@Money(r.BaseNet) / miesiąc</strong><small>@Money(r.HourlyNet) / dodatkową godzinę</small></div><button class="text-button" @onclick="()=>OpenRate(r)">Edytuj</button><button class="text-button danger" @onclick='()=>AskDelete(r,"pay_rates")'>Usuń</button></div>}
+    </section>
+    <section class="panel"><h2>Twoje dane zostają Twoje.</h2><p>Pełny eksport JSON zawiera wpisy, stawki, rozliczenia, wypłaty, urlopy i cele. Zestawienie miesiąca CSV otworzysz w Excelu.</p><div class="button-row"><button class="secondary" @onclick="Export">Pobierz kopię JSON ↓</button><button class="secondary" @onclick="ExportCsv">Pobierz miesiąc CSV ↓</button></div><p class="fine">W tej wersji import istniejącego Excela i przywracanie kopii JSON nie są jeszcze dostępne.</p></section>
+    <section class="panel"><h2>Na wszystkich Twoich urządzeniach</h2><p>Na iPhonie otwórz docelowy adres w Safari i wybierz Udostępnij → Dodaj do ekranu początkowego. Na Macu i Windowsie użyj tego samego adresu i konta.</p><p class="fine">Zapisywanie i odczyt danych wymagają internetu. Automatyczna kolejka zmian offline jest planowana na kolejny etap.</p></section>
+   }
+   <footer>godzinki <span>Twój czas. Twoje wyniki.</span><small>@(Store.Demo?"Przestrzeń demonstracyjna":"Dane dostępne po zalogowaniu")</small></footer>
+  </main>
+ </div>
+ @if(modal!=""){
+  <div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+   <div class="modal-heading"><div><span class="eyebrow">TWOJE GODZINKI</span><h2 id="modal-title">@(modal switch{"work"=>"Dzień pracy","extra"=>"Praca dodatkowa","rate"=>"Stawka netto","settlement"=>"Zatwierdź rozliczenie","payment"=>"Otrzymana wypłata","leave"=>"Zmiana urlopu","goal"=>"Twój cel",_=>"Usunąć ten wpis?"})</h2></div><button class="icon-button" aria-label="Zamknij formularz" disabled="@busy" @onclick='()=>{modal="";error="";}'>×</button></div>
+   @if(!string.IsNullOrEmpty(error)){<div class="alert error" role="alert">@error</div>}
+   @if(modal=="delete"){<p>Wpis zniknie z zestawienia. Zatwierdzone rozliczenia nie zostaną automatycznie przeliczone.</p><div class="modal-actions"><button class="secondary" @onclick='()=>modal=""'>Anuluj</button><button class="primary" disabled="@busy" @onclick="ConfirmDelete">Usuń wpis</button></div>}
+   else {
+   <form @onsubmit="Save" @onsubmit:preventDefault>
+   @if(modal=="work"){
+    <div class="form-grid"><label>Data<input type="date" required @bind="work.WorkDate" /></label><label>Rodzaj dnia<select @bind="work.DayType"><option value="work">Praca</option><option value="business_trip">Delegacja</option><option value="leave">Urlop</option><option value="off">Wolne</option><option value="holiday">Święto</option><option value="sick">Chorobowe</option></select></label><label>Początek<input type="time" value="@start" @oninput="e => start=e.Value?.ToString()??string.Empty" /></label><label>Koniec<input type="time" value="@end" @oninput="e => end=e.Value?.ToString()??string.Empty" /></label><label>Przerwa (min)<input type="number" min="0" max="1440" @bind="work.BreakMinutes" @bind:event="oninput" /></label><label>Norma (min)<input type="number" min="0" max="1440" @bind="work.NormMinutes" @bind:event="oninput" /></label></div>
+    <label class="check"><input type="checkbox" @bind="work.EndsNextDay" /> Koniec pracy następnego dnia</label>
+    <div class="form-grid"><label>Sam czas pracy (min)<input type="number" min="0" max="2880" @bind="manualMinutes" @bind:event="oninput" placeholder="Gdy nie podajesz godzin" /></label><label>Ręczne saldo ponad normę (min)<input type="number" @bind="work.OvertimeMinutesOverride" @bind:event="oninput" placeholder="Puste = oblicz automatycznie" /></label></div><p class="fine">Jeśli podasz początek i koniec, wyliczymy czas z godzin. Urlop i dni wolne mają normę 0; saldo urlopu zapisujesz osobno w zakładce Urlopy.</p><label>Notatka<textarea @bind:event="oninput" @bind="work.Notes" rows="2"></textarea></label>
+   }
+   else if(modal=="extra"){<div class="form-grid"><label>Data<input type="date" required @bind="extra.WorkDate" /></label><label>Czas (min)<input type="number" required min="1" @bind="extra.Minutes" @bind:event="oninput" /></label></div><label>Projekt / zadanie<input @bind="extra.ProjectName" placeholder="Nad czym pracowałeś?" @bind:event="oninput" /></label><label>Notatka<textarea @bind:event="oninput" @bind="extra.Notes" rows="3"></textarea></label><p class="fine">Wpisz wyłącznie dodatkową pracę. Saldem z firmy zajmie się rozliczenie miesiąca.</p>}
+   else if(modal=="rate"){<label>Obowiązuje od<input type="date" required @bind="rate.EffectiveFrom" /></label><div class="form-grid"><label>Podstawa netto (zł)<input type="number" required min="0" step="0.01" @bind="rate.BaseNet" @bind:event="oninput" /></label><label>Dodatkowa godzina netto (zł)<input type="number" required min="0" step="0.01" @bind="rate.HourlyNet" @bind:event="oninput" /></label></div><label>Notatka<input @bind="rate.Notes" @bind:event="oninput" /></label>}
+   else if(modal=="settlement"){
+    <p class="muted">@settlement.Month.ToString("MMMM yyyy") · stawki i czas zostaną zapisane jako osobne rozliczenie.</p><div class="proposal"><span>Firma: @Duration(settlement.CompanyMinutesSnapshot??0)</span><span>Dodatkowo: @Duration(settlement.ExtraMinutesSnapshot??0)</span><button type="button" class="text-button" @onclick="RefreshProposal">Pobierz aktualny czas</button></div>
+    <label>Czas do wypłaty (min)<input type="number" required min="0" @bind="settlement.ApprovedMinutes" @bind:event="oninput" /></label><div class="form-grid"><label>Podstawa netto (zł)<input type="number" required min="0" step="0.01" @bind="settlement.BaseNetSnapshot" @bind:event="oninput" /></label><label>Stawka za godzinę netto (zł)<input type="number" required min="0" step="0.01" @bind="settlement.HourlyNetSnapshot" @bind:event="oninput" /></label><label>Premia netto (zł)<input type="number" step="0.01" @bind="settlement.BonusNet" @bind:event="oninput" /></label><label>Korekta kwoty netto (zł)<input type="number" step="0.01" @bind="settlement.CorrectionNet" @bind:event="oninput" /></label></div>
+    <label>Powód korekty czasu<input @bind="settlement.CorrectionReason" placeholder="Np. zaokrąglenie do pół godziny" @bind:event="oninput" /></label><div class="form-total"><span>Razem netto</span><strong>@Money(Payroll.Total(settlement))</strong></div><p class="fine">To zapis należności. Faktyczne otrzymanie pieniędzy oznaczysz osobno.</p>
+   }
+   else if(modal=="payment"){<label>Data otrzymania<input type="date" required @bind="payment.PaidOn" /></label><label>Otrzymana kwota netto (zł)<input type="number" required min="0.01" step="0.01" @bind="payment.AmountNet" @bind:event="oninput" /></label><label>Notatka<input @bind="payment.Notes" @bind:event="oninput" /></label>}
+   else if(modal=="leave"){<div class="form-grid"><label>Data wpisu<input type="date" required @bind="leave.EffectiveDate" /></label><label>Rok puli urlopowej<input type="number" required min="2000" max="2200" @bind="leave.EntitlementYear" @bind:event="oninput" /></label></div><label>Rodzaj<select @bind="leave.Kind"><option value="taken">Wykorzystanie</option><option value="allocation">Przydział roczny</option><option value="carryover">Przeniesienie zaległych dni</option><option value="correction">Korekta</option></select></label><label>Zmiana liczby dni<input type="number" required step="0.5" @bind="leave.DaysDelta" @bind:event="oninput" /></label><p class="fine">Np. −2 oznacza dwa dni wykorzystane, +26 oznacza przydział 26 dni.</p><label>Notatka<input @bind="leave.Notes" @bind:event="oninput" /></label>}
+   else if(modal=="goal"){<label>Nazwa celu<input required @bind="goal.Name" @bind:event="oninput" /></label><div class="form-grid"><label>Od<input type="date" required @bind="goal.StartsOn" /></label><label>Do<input type="date" required @bind="goal.EndsOn" /></label></div><label>Cel netto (zł)<input type="number" min="0.01" step="0.01" required @bind="goal.TargetNet" @bind:event="oninput" /></label><label>Co liczymy?<select @bind="goal.Basis"><option value="earned">Zatwierdzone rozliczenia</option><option value="paid">Otrzymane wypłaty</option></select></label><p class="fine">Rozliczenia są przypisane do pierwszego dnia miesiąca. Dla celu opartego na zarobkach wybierz początek miesiąca.</p>}
+   <div class="modal-actions">
+    @if(modal=="work"&&work.Version>0){<button type="button" class="text-button danger" @onclick='()=>AskDelete(work,"work_days")'>Usuń dzień</button>}
+    <button type="button" class="secondary" disabled="@busy" @onclick='()=>{modal="";error="";}'>Anuluj</button><button class="primary" type="submit" disabled="@busy">@(busy?"Zapisuję…":modal=="settlement"?"Zatwierdź rozliczenie":"Zapisz")</button>
+   </div>
+   </form>}
+  </section></div>
+ }
+}
+
