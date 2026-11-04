@@ -13,6 +13,20 @@ Do danych rzeczywistych utwórz konto aplikacji i potwierdź e-mail.
 Konto panelu administracyjnego Supabase nie jest kontem aplikacji.
 
 ## Zakres tej wersji
+- Premie jako osobne wpisy netto za miesiąc, wykres i roczne sumy premii.
+- Delegacje: miejsce, kraj, cel, transport, termin z godzinami, ręczna stawka i
+  końcowa dieta w wybranej walucie. Dieta nie jest dodawana do wynagrodzenia.
+  Dni faktycznej pracy zapisują się atomowo z delegacją do kalendarza; kolizje
+  z istniejącymi dniami są odrzucane. Edycja i usunięcie synchronizują powiązane dni.
+- Pulpit obejmuje wyłącznie zakończone miesiące według daty Europe/Warsaw.
+  Nowe miesiące naliczają się z ewidencji i stawki przy odczycie, bez zadania cron.
+  Otwarty widok odświeża datę co 30 sekund. Ręczne rozliczenie ma pierwszeństwo.
+  Automatyczne naliczenie wymaga stawki, bez zmiany stawki w środku miesiąca,
+  i kompletnego czasu dla wpisanych dni pracy. Kwoty automatyczne reagują na
+  poprawki ewidencji; ręczne zatwierdzenie utrwala podstawę i czas. Osobne premie
+  pozostają doliczane dynamicznie i nie są ponownie zapisywane w BonusNet.
+  Za okres do ostatniego importowanego miesiąca nie odtwarzamy automatycznie
+  brakujących rozliczeń z niepełnej ewidencji historycznej.
 - Logowanie, rejestracja z potwierdzeniem e-maila, odświeżanie sesji, wylogowanie.
 - Pulpit i historia zatwierdzonych kwot, kalendarz, osobna praca dodatkowa.
 - Statystyki od początku historii, filtry lat i własnego okresu, wykresy miesięczne
@@ -50,6 +64,8 @@ archiwum importu, dlatego należy zachować oryginał i pakiet migracji.
 Adres i klucz publishable są w wwwroot/appsettings.json, zgodnie z przeznaczeniem
 publicznego klienta. Nigdy nie dodawać service_role ani secret do tej aplikacji.
 Schemat bazy i testy RLS znajdują się w katalogu database.
+Przed wdrożeniem wersji z premiami i delegacjami uruchom jednorazowo
+`database/002_bonuses_trips.sql` w SQL Editor. Nie zawiera danych użytkownika.
 Każda tabela wymaga RLS i polityki właściciela.
 Authentication → URL Configuration: dodać http://localhost:5260/ do Redirect URLs.
 Po wdrożeniu ustawić Site URL na adres GitHub Pages oraz dodać go do Redirect URLs.

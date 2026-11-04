@@ -5,7 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Components.Forms;
 namespace Godzinki;
-public partial class App {
+public partial class App : IAsyncDisposable {
  string page="Pulpit", modal="", email="",password="",authMode="login",notice="",error="";
  bool initialized,busy; DateOnly month=new(DateTime.Today.Year,DateTime.Today.Month,1);
  bool darkTheme=true;
@@ -13,7 +13,7 @@ public partial class App {
  JsonObject? migration; string migrationSummary="",importProgress="";
  WorkDay work=new();ExtraWork extra=new();PayRate rate=new();Settlement settlement=new();Payment payment=new();LeaveEntry leave=new();Goal goal=new();
  string start="",end="";int? manualMinutes; Row? deleting;string deleteTable="";
- readonly string[] pages=["Pulpit","Miesiąc","Kalendarz","Rozliczenia","Urlopy","Cele","Ustawienia"];
+ readonly string[] pages=["Pulpit","Miesiąc","Kalendarz","Rozliczenia","Premie","Delegacje","Urlopy","Cele","Ustawienia"];
  IEnumerable<WorkDay> MonthDays=>Store.Days.Where(x=>SameMonth(x.WorkDate)).OrderBy(x=>x.WorkDate);
  IEnumerable<ExtraWork> MonthExtras=>Store.Extras.Where(x=>SameMonth(x.WorkDate));
  Settlement? Current=>Store.Settlements.FirstOrDefault(x=>x.Month==month);
@@ -22,8 +22,9 @@ public partial class App {
  int CompanyMinutes=>MonthDays.Sum(Payroll.Overtime);
  int ExtraMinutes=>MonthExtras.Sum(x=>x.Minutes);
  int TotalMinutes=>MonthDays.Sum(x=>x.WorkedMinutes??0)+ExtraMinutes;
- decimal? Estimate=>Current?.TotalNet ?? (CurrentRate is null?null:CurrentRate.BaseNet+Math.Max(0,CompanyMinutes+ExtraMinutes)/60m*CurrentRate.HourlyNet);
- decimal YearNet=>Store.Settlements.Where(x=>x.Month.Year==month.Year&&x.Status=="approved").Sum(x=>x.TotalNet??0);
+ decimal MonthBonuses=>Store.Bonuses.Where(x=>x.Month==month).Sum(x=>x.AmountNet);
+ decimal? Estimate=>(Current?.TotalNet ?? (CurrentRate is null?null:CurrentRate.BaseNet+Math.Max(0,CompanyMinutes+ExtraMinutes)/60m*CurrentRate.HourlyNet))+MonthBonuses;
+ decimal YearNet=>Store.ReportSettlements.Where(x=>x.Month.Year==month.Year).Sum(x=>x.TotalNet??0);
  decimal PaidForMonth=>Current is null?0:Store.Payments.Where(x=>x.SettlementId==Current.Id).Sum(x=>x.AmountNet);
  decimal LeaveBalance=>Store.Leaves.Where(x=>x.EntitlementYear==month.Year).Sum(x=>x.DaysDelta);
  string MonthName=>month.ToString("MMMM yyyy",CultureInfo.GetCultureInfo("pl-PL"));
@@ -40,8 +41,11 @@ public partial class App {
  string DayType(string k)=>k switch {"work"=>"Praca","leave"=>"Urlop","off"=>"Wolne","holiday"=>"Święto","sick"=>"Chorobowe","business_trip"=>"Delegacja",_=>k};
  string Initials=>Store.Demo?"DE":(Store.Session?.User.Email.FirstOrDefault().ToString().ToUpperInvariant()??"JA");
  protected override async Task OnAfterRenderAsync(bool first) {
-  if(first){darkTheme=await JS.InvokeAsync<string>("godzinki.getTheme")=="dark";await Act(Store.Initialize);ShowLatestHistory();initialized=true;StateHasChanged();}
+  if(first){darkTheme=await JS.InvokeAsync<string>("godzinki.getTheme")=="dark";await Act(Store.Initialize);ShowLatestHistory();initialized=true;StateHasChanged();dateLoop=WatchDate();}
  }
+ CancellationTokenSource dateStop=new();Task? dateLoop;
+ async Task WatchDate(){try{using var timer=new PeriodicTimer(TimeSpan.FromSeconds(30));while(await timer.WaitForNextTickAsync(dateStop.Token)){if(await Store.UpdateDate())await InvokeAsync(StateHasChanged);}}catch(OperationCanceledException){}catch(JSDisconnectedException){}}
+ public async ValueTask DisposeAsync(){dateStop.Cancel();if(dateLoop is not null)await dateLoop;dateStop.Dispose();}
  async Task Act(Func<Task> action,string success="") {
   if(busy)return;busy=true;error="";notice="";
   try{await action();notice=success;}catch(Exception e){error=e is HttpRequestException?"Nie udało się połączyć. Sprawdź internet i spróbuj ponownie.":e.Message;}
@@ -79,6 +83,7 @@ public partial class App {
  int dashboardVisit;
  void ChangePage(string p){page=p;if(p=="Pulpit")dashboardVisit++;error="";notice="";}
  void OpenWork(WorkDay? existing=null,DateOnly? date=null) {
+  if(existing?.TripId is not null){month=MonthlyClosing.Month(existing.WorkDate);page="Delegacje";notice="Ten dzień jest powiązany z delegacją. Edytuj delegację i jej dni pracy.";return;}
   work=existing is null?new(){WorkDate=date??(SameMonth(DateOnly.FromDateTime(DateTime.Today))?DateOnly.FromDateTime(DateTime.Today):month)}:DataStore.Clone(existing);
   start=work.StartTime?.ToString("HH:mm")??"";end=work.EndTime?.ToString("HH:mm")??"";
   manualMinutes=work.WorkedMinutes;modal="work";error="";
@@ -92,7 +97,7 @@ public partial class App {
   modal="settlement";error="";
  }
  void RefreshProposal(){settlement.CompanyMinutesSnapshot=CompanyMinutes;settlement.ExtraMinutesSnapshot=ExtraMinutes;settlement.ApprovedMinutes=Math.Max(0,CompanyMinutes+ExtraMinutes);}
- void OpenPayment(){if(Current is null)return;payment=new(){SettlementId=Current.Id,AmountNet=Math.Max(0,(Current.TotalNet??0)-PaidForMonth)};modal="payment";error="";}
+ void OpenPayment(){if(Current is null)return;payment=new(){SettlementId=Current.Id,AmountNet=Math.Max(0,(Current.TotalNet??0)+MonthBonuses-PaidForMonth)};modal="payment";error="";}
  void AskDelete(Row row,string table){deleting=row;deleteTable=table;modal="delete";error="";}
  async Task ConfirmDelete()=>await Act(async()=>{
   switch(deleting){
@@ -121,7 +126,7 @@ public partial class App {
     if(settlement.ApprovedMinutes is null or <0 || settlement.BaseNetSnapshot is null or <0 || settlement.HourlyNetSnapshot is null or <0)throw new Exception("Uzupełnij czas do wypłaty, podstawę i stawkę netto.");
     var proposed=(settlement.CompanyMinutesSnapshot??0)+(settlement.ExtraMinutesSnapshot??0);
     if(settlement.ApprovedMinutes!=Math.Max(0,proposed)&&string.IsNullOrWhiteSpace(settlement.CorrectionReason))throw new Exception("Dodaj powód ręcznej korekty czasu.");
-    settlement.Status="approved";settlement.ApprovedAt=DateTimeOffset.UtcNow;
+    settlement.Status=settlement.Month<MonthlyClosing.Month(Store.Today)?"approved":"draft";settlement.ApprovedAt=DateTimeOffset.UtcNow;
     await Store.Save("settlements",settlement);break;
    case "payment":
     if(payment.AmountNet<=0)throw new Exception("Podaj dodatnią kwotę wypłaty.");
@@ -134,10 +139,10 @@ public partial class App {
     await Store.Save("goals",goal);break;
   }modal="";
  },"Zapisano.");
- decimal GoalValue(Goal g)=>g.Basis=="paid"?Store.Payments.Where(x=>x.PaidOn>=g.StartsOn&&x.PaidOn<=g.EndsOn).Sum(x=>x.AmountNet):Store.Settlements.Where(x=>x.Status=="approved"&&x.Month>=g.StartsOn&&x.Month<=g.EndsOn).Sum(x=>x.TotalNet??0);
+ decimal GoalValue(Goal g)=>g.Basis=="paid"?Store.Payments.Where(x=>x.PaidOn>=g.StartsOn&&x.PaidOn<=g.EndsOn).Sum(x=>x.AmountNet):Store.ReportSettlements.Where(x=>x.Month>=g.StartsOn&&x.Month<=g.EndsOn).Sum(x=>x.TotalNet??0);
  string Percent(decimal value,decimal max)=>Math.Clamp(max>0?value/max*100:0,0,100).ToString("0.##",CultureInfo.InvariantCulture)+"%";
  async Task Export()=>await Act(async()=>{
-  var snapshot=new{format="godzinki-backup-v1",exportedAt=DateTimeOffset.UtcNow,days=Store.Days,extraWork=Store.Extras,rates=Store.Rates,settlements=Store.Settlements,payments=Store.Payments,leave=Store.Leaves,goals=Store.Goals};
+  var snapshot=new{format="godzinki-backup-v1",exportedAt=DateTimeOffset.UtcNow,days=Store.Days,extraWork=Store.Extras,rates=Store.Rates,settlements=Store.Settlements,payments=Store.Payments,leave=Store.Leaves,goals=Store.Goals,bonuses=Store.Bonuses,trips=Store.Trips};
   await JS.InvokeVoidAsync("godzinki.download",$"godzinki-{DateTime.Today:yyyy-MM-dd}.json",JsonSerializer.Serialize(snapshot,new JsonSerializerOptions(DataStore.Json){WriteIndented=true}),"application/json");
  },"Pobrano kopię danych.");
  async Task ExportCsv()=>await Act(async()=>{

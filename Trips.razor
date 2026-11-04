@@ -1,0 +1,52 @@
+@inject DataStore Store
+<section class="panel">
+ <div class="panel-heading"><div><span class="eyebrow">PODRÓŻE SŁUŻBOWE</span><h2>Delegacje · @Month.ToString("MMMM yyyy")</h2></div><button class="primary" @onclick="()=>Edit(null)">＋ Dodaj delegację</button></div>
+ <p>Termin podróży, dieta i faktyczny czas pracy są zapisane osobno. Dieta nie zwiększa zarobków netto. Dni pracy delegacji trafiają do kalendarza i naliczania nadgodzin.</p>
+ @if(error!=""){<div class="alert error" role="alert">@error</div>}
+ @if(notice!=""){<div class="toast">@notice</div>}
+ @foreach(var t in Visible){
+  <article class="trip-card"><div class="panel-heading"><h3>@t.Destination · @t.Country</h3><span class="tag">@t.Transport</span></div>
+   <p>@t.StartDate.ToString("dd.MM.yyyy") @t.StartTime.ToString("HH:mm") → @t.EndDate.ToString("dd.MM.yyyy") @t.EndTime.ToString("HH:mm")<br />@t.Purpose</p>
+   <div class="button-row"><span>Podróż: @Duration(t)</span><span>Dieta: <strong>@t.AllowanceAmount.ToString("N2") @t.Currency</strong></span><span>Stawka dzienna: @t.DailyRate.ToString("N2") @t.Currency</span></div>
+   <p class="fine">Praca w delegacji: @Payroll.Duration(Store.Days.Where(x=>x.TripId==t.Id).Sum(x=>x.WorkedMinutes??0)). @t.Notes</p>
+   <button class="text-button" @onclick="()=>Edit(t)">Edytuj delegację i dni pracy</button><button class="text-button danger" @onclick="()=>AskRemove(t)">Usuń</button>
+  </article>
+ }
+ @if(!Visible.Any()){<p class="empty">Brak delegacji obejmujących ten miesiąc.</p>}
+ @if(removing is not null){<div class="alert">Usunąć delegację „@removing.Destination” oraz jej powiązane dni pracy? Ręcznie zatwierdzone rozliczenia pozostaną bez zmian.<div class="button-row"><button class="secondary" @onclick="()=>removing=null">Anuluj</button><button class="primary" disabled="@busy" @onclick="Remove">Usuń delegację i dni</button></div></div>}
+</section>
+@if(edit is not null){
+ <div class="modal-backdrop"><section class="modal trip-modal" role="dialog" aria-modal="true" aria-label="Delegacja"><h2>Delegacja</h2>
+ @if(error!=""){<p class="alert error">@error</p>}
+ <form @onsubmit="Save" @onsubmit:preventDefault>
+  <div class="form-grid"><label>Miejsce / miejscowość<input required @bind="edit.Destination" @bind:event="oninput" /></label><label>Kraj<input required @bind="edit.Country" @bind:event="oninput" /></label></div>
+  <label>Cel podróży<input @bind="edit.Purpose" @bind:event="oninput" /></label>
+  <label>Środek transportu<select @bind="edit.Transport"><option>Samochód</option><option>Samochód służbowy</option><option>Pociąg</option><option>Samolot</option><option>Autobus</option><option>Mieszany / inny</option></select></label>
+  <div class="form-grid"><label>Wyjazd · data<input type="date" required @bind="edit.StartDate" /></label><label>Godzina<input type="time" required @bind="edit.StartTime" /></label><label>Powrót · data<input type="date" required @bind="edit.EndDate" /></label><label>Godzina<input type="time" required @bind="edit.EndTime" /></label></div>
+  <p class="fine">Godziny podróży wpisz według jednej strefy czasu. Czas podróży: @Duration(edit).</p>
+  <div class="form-grid"><label>Stawka diety za dzień<input type="number" min="0" step="0.01" @bind="edit.DailyRate" @bind:event="oninput" /></label><label>Waluta<select @bind="edit.Currency"><option>PLN</option><option>EUR</option><option>USD</option><option>GBP</option><option>CZK</option><option>CHF</option></select></label><label>Końcowa kwota diety<input type="number" min="0" step="0.01" @bind="edit.AllowanceAmount" @bind:event="oninput" /></label></div>
+  <p class="fine">Końcową kwotę wpisujesz ręcznie, po uwzględnieniu posiłków i innych potrąceń. Zmiana stawki nie przelicza kwoty diety.</p>
+  <h3>Faktyczna praca podczas delegacji</h3><p class="fine">Dodaj tylko przepracowane dni. Czas pracy podaj po odjęciu przerw. Norma domyślna to 480 min; ustaw 0, jeśli cały czas ma stanowić nadgodziny.</p>
+  @foreach(var day in days){<div class="trip-work-row" @key="day.Id"><label>Dzień<input type="date" required @bind="day.WorkDate" /></label><label>Praca (min)<input type="number" min="0" max="2880" required @bind="day.WorkedMinutes" @bind:event="oninput" /></label><label>Norma (min)<input type="number" min="0" max="1440" required @bind="day.NormMinutes" @bind:event="oninput" /></label><button class="text-button danger" type="button" @onclick="()=>days.Remove(day)">Usuń dzień</button></div>}
+  <button type="button" class="secondary" @onclick="AddDay">＋ Dodaj dzień pracy</button>
+  <label>Notatki<textarea @bind="edit.Notes" @bind:event="oninput"></textarea></label>
+  <div class="modal-actions"><button class="secondary" type="button" disabled="@busy" @onclick="()=>edit=null">Anuluj</button><button class="primary" disabled="@busy">Zapisz delegację i dni</button></div>
+ </form></section></div>
+}
+@code {
+ [Parameter] public DateOnly Month{get;set;}
+ Trip? edit,removing;List<WorkDay> days=[],previous=[],removePrevious=[];string error="",notice="";bool busy;
+ IEnumerable<Trip> Visible=>Store.Trips.Where(x=>x.StartDate<Month.AddMonths(1)&&x.EndDate>=Month).OrderByDescending(x=>x.StartDate);
+ string Duration(Trip trip){var span=trip.EndDate.ToDateTime(trip.EndTime)-trip.StartDate.ToDateTime(trip.StartTime);return span<TimeSpan.Zero?"Sprawdź termin":$"{span.Days} dni {span.Hours} h {span.Minutes} min";}
+ void Edit(Trip? value){error="";notice="";edit=value is null?new(){StartDate=Month,EndDate=Month}:DataStore.Clone(value);previous=Store.Days.Where(x=>x.TripId==edit.Id).Select(DataStore.Clone).ToList();days=previous.Select(DataStore.Clone).ToList();}
+ void AddDay(){if(edit is null)return;var date=days.Count==0?edit.StartDate:days.Max(x=>x.WorkDate).AddDays(1);days.Add(new(){WorkDate=date,WorkedMinutes=480,NormMinutes=480,DayType="business_trip"});}
+ async Task Save(){if(busy||edit is null)return;busy=true;error="";try{
+  if(string.IsNullOrWhiteSpace(edit.Destination)||edit.EndDate.ToDateTime(edit.EndTime)<edit.StartDate.ToDateTime(edit.StartTime))throw new Exception("Podaj miejsce i poprawny termin delegacji.");
+  if(edit.DailyRate<0||edit.AllowanceAmount<0)throw new Exception("Kwoty nie mogą być ujemne.");
+  if(days.Select(x=>x.WorkDate).Distinct().Count()!=days.Count)throw new Exception("Dzień pracy występuje dwukrotnie.");
+  foreach(var d in days){if(d.WorkDate<edit.StartDate||d.WorkDate>edit.EndDate||d.WorkedMinutes is null or <0 or >2880||d.NormMinutes is <0 or >1440)throw new Exception("Sprawdź daty i czas pracy. Dni muszą mieścić się w terminie delegacji.");d.Notes=$"Delegacja: {edit.Destination}, {edit.Country}. {edit.Purpose}";}
+  await Store.SaveTrip(edit,days,previous);edit=null;notice="Delegacja i dni pracy zapisane.";
+ }catch(Exception ex){error=ex.Message;}finally{busy=false;}}
+ void AskRemove(Trip t){removing=DataStore.Clone(t);removePrevious=Store.Days.Where(x=>x.TripId==t.Id).Select(DataStore.Clone).ToList();}
+ async Task Remove(){if(busy||removing is null)return;busy=true;try{removing.DeletedAt=DateTimeOffset.UtcNow;await Store.SaveTrip(removing,[],removePrevious);removing=null;notice="Delegacja i jej dni pracy usunięte.";}catch(Exception ex){error=ex.Message;}finally{busy=false;}}
+}

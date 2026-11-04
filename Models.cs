@@ -7,6 +7,7 @@ public class Row {
  public DateTimeOffset? DeletedAt {get;set;}
 }
 public class WorkDay : Row {
+ public Guid? TripId {get;set;}
  public DateOnly WorkDate {get;set;} = DateOnly.FromDateTime(DateTime.Today);
  public TimeOnly? StartTime {get;set;}
  public TimeOnly? EndTime {get;set;}
@@ -68,6 +69,26 @@ public class Goal : Row {
  public DateOnly EndsOn {get;set;} = new DateOnly(DateTime.Today.Year,DateTime.Today.Month,1).AddMonths(1).AddDays(-1);
  public decimal TargetNet {get;set;} = 10000;
  public string Basis {get;set;} = "earned";
+}
+public class Bonus : Row {
+ public DateOnly Month {get;set;}=new(DateTime.Today.Year,DateTime.Today.Month,1);
+ public string Name {get;set;}="Premia";
+ public decimal AmountNet {get;set;}
+ public string? Notes {get;set;}
+}
+public class Trip : Row {
+ public string Destination {get;set;}="";
+ public string Country {get;set;}="Polska";
+ public string? Purpose {get;set;}
+ public string Transport {get;set;}="Samochód";
+ public DateOnly StartDate {get;set;}=DateOnly.FromDateTime(DateTime.Today);
+ public TimeOnly StartTime {get;set;}=new(8,0);
+ public DateOnly EndDate {get;set;}=DateOnly.FromDateTime(DateTime.Today);
+ public TimeOnly EndTime {get;set;}=new(16,0);
+ public decimal DailyRate {get;set;}
+ public decimal AllowanceAmount {get;set;}
+ public string Currency {get;set;}="PLN";
+ public string? Notes {get;set;}
 }
 public class UserInfo { public Guid Id {get;set;} public string Email {get;set;} = ""; }
 public class Session {

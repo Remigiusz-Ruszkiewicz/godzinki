@@ -4,6 +4,8 @@
 <section class="panel statistics">
  <div class="panel-heading"><div><span class="eyebrow">CAŁA HISTORIA PRACY</span><h2>Od pierwszego dnia do dziś.</h2></div><span class="tag">Pulpit wieloletni</span></div>
  <p class="fine">Każde wejście na pulpit otwiera cały zapisany okres. Wybór poniżej zmienia wszystkie sumy, wykresy i zestawienia roczne. Szczegóły pojedynczego miesiąca znajdziesz w zakładce „Miesiąc”.</p>
+ <p class="alert">Pulpit obejmuje zakończone miesiące. @MonthlyClosing.Month(Store.Today).ToString("MMMM yyyy") pojawi się od @MonthlyClosing.Month(Store.Today).AddMonths(1).ToString("dd.MM.yyyy"). Bieżące dane są w zakładce „Miesiąc”.</p>
+ @if(Pending.Count>0){<p class="alert error">Rozliczenia wymagają uzupełnienia: @string.Join(", ",Pending.Select(x=>x.ToString("MM.yyyy"))). Sprawdź czas pracy i stawki lub zapisz ręczne rozliczenie. Zapisane osobno premie są uwzględnione.</p>}
  <div class="range-buttons" aria-label="Zakres statystyk">
   <button class="@(range=="all"?"selected":"")" @onclick='()=>SetRange("all")'>Od początku</button>
   @foreach(var year in Years){<button class="@(range==year.ToString()?"selected":"")" @onclick="()=>SetRange(year.ToString())">@year</button>}
@@ -18,13 +20,14 @@
  else {
   <p class="period-caption">@Start.ToString("MMM yyyy",Pl) – @End.ToString("MMM yyyy",Pl) · @Rows.Count rozliczonych miesięcy</p>
   <div class="stats-kpis">
-   <article class="stat-total"><span>Łącznie zarobione</span><strong>@Money(Total)</strong><small>Zatwierdzone należności w wybranym okresie</small></article>
+   <article class="stat-total"><span>Łącznie zarobione</span><strong>@Money(Total)</strong><small>Rozliczone i automatycznie naliczone zakończone miesiące</small></article>
    <article><span>Średni miesiąc</span><strong>@(Rows.Count>0?Money(Total/Rows.Count):"—")</strong><small>Średnia z @Rows.Count rozliczeń</small></article>
    <article><span>Najlepszy miesiąc ✦</span><strong>@(Best is null?"—":Money(Best.TotalNet??0))</strong><small>@(Best?.Month.ToString("MMMM yyyy",Pl)??"Brak rozliczeń")</small></article>
    <article><span>Ponad podstawę</span><strong>@Money(AboveBase)</strong><small>Czas dodatkowy, premie i korekty</small></article>
   </div>
+  <div class="point-detail"><strong>Premie w tym okresie</strong><span>@Money(Rows.Sum(x=>x.BonusNet)) · zawarte w sumie zarobków</span></div>
   <div class="chart-controls">
-   <label>Co pokazujemy?<select @bind="metric"><option value="net">Zarobki miesięczne</option><option value="cumulative">Zarobki narastająco</option><option value="extra">Ponad podstawę</option><option value="hours">Nadgodziny do wypłaty (h)</option><option value="worked">Godziny przepracowane</option><option value="overtime">Nadgodziny w firmie</option></select></label>
+   <label>Co pokazujemy?<select @bind="metric"><option value="net">Zarobki miesięczne</option><option value="cumulative">Zarobki narastająco</option><option value="extra">Ponad podstawę</option><option value="bonuses">Premie netto</option><option value="hours">Nadgodziny do wypłaty (h)</option><option value="worked">Godziny przepracowane</option><option value="overtime">Nadgodziny w firmie</option></select></label>
    <label>Podział<select @bind="grouping"><option value="month">Miesiące</option><option value="year">Lata</option></select></label>
   </div>
   <HistoryChart Title="@MetricLabel" Values="@Points" Unit="@(metric is "hours" or "worked" or "overtime"?"h":"zł")" Description="Zmień zakres powyżej, aby przyjrzeć się wybranemu fragmentowi historii." />
@@ -50,12 +53,12 @@
     </button>
    }
   </div>
-  <div class="year-table-scroll"><table class="year-table"><caption>Podsumowanie lat w wybranym zakresie</caption><thead><tr><th>Rok</th><th>Zarobki netto</th><th>Przepracowane</th><th>Nadgodziny w firmie</th><th>Saldo w firmie</th><th>Do wypłaty</th><th>Dni z czasem</th></tr></thead><tbody>
+  <div class="year-table-scroll"><table class="year-table"><caption>Podsumowanie lat w wybranym zakresie</caption><thead><tr><th>Rok</th><th>Zarobki netto</th><th>W tym premie</th><th>Przepracowane</th><th>Nadgodziny w firmie</th><th>Saldo w firmie</th><th>Do wypłaty</th><th>Dni z czasem</th></tr></thead><tbody>
    @foreach(var y in Years.Where(y=>y>=Start.Year&&y<=End.Year)){
     var dd=Days.Where(x=>x.WorkDate.Year==y).ToList();var ee=Extras.Where(x=>x.WorkDate.Year==y);var ss=Rows.Where(x=>x.Month.Year==y).ToList();
-    <tr><th><button class="text-button" @onclick="()=>SetRange(y.ToString())">@y ↗</button></th><td>@(ss.Count>0?Money(ss.Sum(x=>x.TotalNet??0)):"—")</td><td>@Payroll.Duration(dd.Sum(x=>x.WorkedMinutes??0)+ee.Sum(x=>x.Minutes))</td><td>@Payroll.Duration(dd.Sum(x=>Math.Max(0,Payroll.Overtime(x))))</td><td>@Payroll.Duration(dd.Sum(Payroll.Overtime))</td><td>@(ss.Count>0?Payroll.Duration(ss.Sum(x=>x.ApprovedMinutes??0)):"—")</td><td>@dd.Count(x=>x.WorkedMinutes.HasValue) / @dd.Count</td></tr>
+    <tr><th><button class="text-button" @onclick="()=>SetRange(y.ToString())">@y ↗</button></th><td>@(ss.Count>0?Money(ss.Sum(x=>x.TotalNet??0)):"—")</td><td>@Money(ss.Sum(x=>x.BonusNet))</td><td>@Payroll.Duration(dd.Sum(x=>x.WorkedMinutes??0)+ee.Sum(x=>x.Minutes))</td><td>@Payroll.Duration(dd.Sum(x=>Math.Max(0,Payroll.Overtime(x))))</td><td>@Payroll.Duration(dd.Sum(Payroll.Overtime))</td><td>@(ss.Count>0?Payroll.Duration(ss.Sum(x=>x.ApprovedMinutes??0)):"—")</td><td>@dd.Count(x=>x.WorkedMinutes.HasValue) / @dd.Count</td></tr>
    }
-  </tbody><tfoot><tr><th>Razem</th><td>@Money(Total)</td><td>@Payroll.Duration(WorkedMinutes)</td><td>@Payroll.Duration(Days.Sum(x=>Math.Max(0,Payroll.Overtime(x))))</td><td>@Payroll.Duration(Days.Sum(Payroll.Overtime))</td><td>@Payroll.Duration(Rows.Sum(x=>x.ApprovedMinutes??0))</td><td>@Days.Count(x=>x.WorkedMinutes.HasValue) / @Days.Count</td></tr></tfoot></table></div>
+  </tbody><tfoot><tr><th>Razem</th><td>@Money(Total)</td><td>@Money(Rows.Sum(x=>x.BonusNet))</td><td>@Payroll.Duration(WorkedMinutes)</td><td>@Payroll.Duration(Days.Sum(x=>Math.Max(0,Payroll.Overtime(x))))</td><td>@Payroll.Duration(Days.Sum(Payroll.Overtime))</td><td>@Payroll.Duration(Rows.Sum(x=>x.ApprovedMinutes??0))</td><td>@Days.Count(x=>x.WorkedMinutes.HasValue) / @Days.Count</td></tr></tfoot></table></div>
   <p class="fine">Porównania rok do roku obejmują wyłącznie te same rozliczone miesiące obu lat. Nie porównujemy niepełnego roku z pełnym.</p>
  }
 </section>
@@ -67,22 +70,24 @@
  List<WorkDay> Days=[];
  List<ExtraWork> Extras=[];
  List<Settlement> Rows=[];
+ List<DateOnly> Pending=[];
  DateOnly First,Last;
  readonly Dictionary<string,List<HistoryPoint>> chartCache=new();
  void PrepareView(){
-  All=Store.Settlements.Where(x=>x.Status=="approved"&&x.TotalNet.HasValue).OrderBy(x=>x.Month).ToList();
+  All=Store.ReportSettlements;
+  Pending=MonthlyClosing.Pending(Store,All);
   var months=DataMonths.ToList();First=months.Count>0?months.Min():TodayMonth;Last=months.Count>0?months.Max():TodayMonth;
-  var start=Start;var end=End;
-  Days=Store.Days.Where(x=>MonthOf(x.WorkDate)>=start&&MonthOf(x.WorkDate)<=end).ToList();
-  Extras=Store.Extras.Where(x=>MonthOf(x.WorkDate)>=start&&MonthOf(x.WorkDate)<=end).ToList();
+  var start=Start;var end=End;var cutoff=MonthlyClosing.Month(Store.Today);
+  Days=Store.Days.Where(x=>MonthOf(x.WorkDate)>=start&&MonthOf(x.WorkDate)<=end&&x.WorkDate<cutoff).ToList();
+  Extras=Store.Extras.Where(x=>MonthOf(x.WorkDate)>=start&&MonthOf(x.WorkDate)<=end&&x.WorkDate<cutoff).ToList();
   Rows=ValidRange?All.Where(x=>x.Month>=start&&x.Month<=end).ToList():[];
   chartCache.Clear();
  }
  IEnumerable<int> Years=>DataMonths.Select(x=>x.Year).Distinct().OrderDescending();
- IEnumerable<DateOnly> DataMonths=>All.Select(x=>x.Month).Concat(Store.Days.Select(x=>MonthOf(x.WorkDate))).Concat(Store.Extras.Select(x=>MonthOf(x.WorkDate)));
+ IEnumerable<DateOnly> DataMonths=>All.Select(x=>x.Month).Concat(Store.Days.Where(x=>x.WorkDate<MonthlyClosing.Month(Store.Today)).Select(x=>MonthOf(x.WorkDate))).Concat(Store.Extras.Where(x=>x.WorkDate<MonthlyClosing.Month(Store.Today)).Select(x=>MonthOf(x.WorkDate)));
  static DateOnly MonthOf(DateOnly d)=>new(d.Year,d.Month,1);
  int WorkedMinutes=>Days.Sum(x=>x.WorkedMinutes??0)+Extras.Sum(x=>x.Minutes);
- DateOnly TodayMonth=>new(DateTime.Today.Year,DateTime.Today.Month,1);
+ DateOnly TodayMonth=>MonthlyClosing.Month(Store.Today).AddMonths(-1);
  DateOnly Start=>range switch {"all"=>First,"12"=>TodayMonth.AddMonths(-11),"custom"=>ParseMonth(from)??First,_=>int.TryParse(range,out var y)?new(y,1,1):First};
  DateOnly End=>range switch {"all"=>Last,"12"=>TodayMonth,"custom"=>ParseMonth(to)??Last,_=>int.TryParse(range,out var y)?new(y,12,1):Last};
  bool ValidRange=>Start<=End && (range!="custom" || ParseMonth(from) is not null && ParseMonth(to) is not null);
@@ -90,7 +95,7 @@
  decimal AboveBase=>Rows.Sum(x=>(x.TotalNet??0)-(x.BaseNetSnapshot??0));
  Settlement? Best=>Rows.MaxBy(x=>x.TotalNet);
  decimal NextMilestone {get{var step=Total<100000?10000m:100000m;return Math.Max(step,(decimal.Floor(Total/step)+1)*step);}}
- string MetricLabel=>metric switch {"worked"=>"Godziny przepracowane","overtime"=>"Nadgodziny w firmie","hours"=>"Godziny do wypłaty","extra"=>"Ponad podstawę · zł netto","cumulative"=>"Suma narastająco · zł netto",_=>"Zarobki · zł netto"};
+ string MetricLabel=>metric switch {"bonuses"=>"Premie · zł netto","worked"=>"Godziny przepracowane","overtime"=>"Nadgodziny w firmie","hours"=>"Godziny do wypłaty","extra"=>"Ponad podstawę · zł netto","cumulative"=>"Suma narastająco · zł netto",_=>"Zarobki · zł netto"};
 
  List<HistoryPoint> Points=>BuildPoints(metric);
  List<HistoryPoint> BuildPoints(string kind) {
@@ -107,7 +112,7 @@
     "worked"=>((dd?.Sum(x=>x.WorkedMinutes??0)??0)+(ee?.Sum(x=>x.Minutes)??0))/60m,
     "overtime"=>(dd?.Sum(x=>Math.Max(0,Payroll.Overtime(x)))??0)/60m,
     "hours"=>(s?.ApprovedMinutes??0)/60m,
-    "extra"=>(s?.TotalNet??0)-(s?.BaseNetSnapshot??0),_=>s?.TotalNet??0};
+    "bonuses"=>s?.BonusNet??0,"extra"=>(s?.TotalNet??0)-(s?.BaseNetSnapshot??0),_=>s?.TotalNet??0};
    running+=value;
    points.Add(new(d.ToString("yyyy-MM"),d.ToString("MMM yy",Pl),kind=="cumulative"?running:value,present));
   }

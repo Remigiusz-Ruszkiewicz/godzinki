@@ -19,10 +19,16 @@ public sealed class DataStore(HttpClient http, IConfiguration config, IJSRuntime
  public List<Payment> Payments {get;private set;} = [];
  public List<LeaveEntry> Leaves {get;private set;} = [];
  public List<Goal> Goals {get;private set;} = [];
+ public List<Bonus> Bonuses {get;private set;}=[];
+ public List<Trip> Trips {get;private set;}=[];
+ public DateOnly Today {get;private set;}=DateOnly.FromDateTime(DateTime.Today);
+ public List<Settlement> ReportSettlements=>MonthlyClosing.Report(this);
+ public async Task<bool> UpdateDate(){var date=DateOnly.Parse(await js.InvokeAsync<string>("godzinki.polishDate"));var changed=date!=Today;Today=date;return changed;}
  readonly SemaphoreSlim refreshLock = new(1,1);
  string Url => config["Supabase:Url"]!.TrimEnd('/');
  string Key => config["Supabase:PublishableKey"]!;
  public async Task Initialize() {
+  await UpdateDate();
   var redirect=await js.InvokeAsync<string?>("godzinki.takeAuthHash");
   if (!string.IsNullOrEmpty(redirect)) {
    var query=redirect.TrimStart('#').Split('&').Select(x=>x.Split('=',2)).Where(x=>x.Length==2).ToDictionary(x=>x[0],x=>Uri.UnescapeDataString(x[1]));
@@ -88,7 +94,7 @@ public sealed class DataStore(HttpClient http, IConfiguration config, IJSRuntime
    try {using var req=Make(HttpMethod.Post,"/auth/v1/logout");req.Headers.Authorization=new("Bearer",Session.AccessToken); using var res=await http.SendAsync(req);} catch(HttpRequestException){}
   }
   Session=null; Demo=false; LoadError=null;
-  Days=[]; Extras=[];Rates=[];Settlements=[];Payments=[];Leaves=[];Goals=[];
+  Days=[]; Extras=[];Rates=[];Settlements=[];Payments=[];Leaves=[];Goals=[];Bonuses=[];Trips=[];
   await js.InvokeVoidAsync("localStorage.removeItem","godzinki.session");
  }
  public async Task Reload() {
@@ -100,8 +106,10 @@ public sealed class DataStore(HttpClient http, IConfiguration config, IJSRuntime
    var days=Read<WorkDay>("work_days"); var extras=Read<ExtraWork>("extra_work");
    var rates=Read<PayRate>("pay_rates"); var settlements=Read<Settlement>("settlements");
    var payments=Read<Payment>("payments"); var leaves=Read<LeaveEntry>("leave_ledger"); var goals=Read<Goal>("goals");
-   await Task.WhenAll(days,extras,rates,settlements,payments,leaves,goals);
+   var bonuses=Read<Bonus>("bonuses");var trips=Read<Trip>("trips");
+   await Task.WhenAll(days,extras,rates,settlements,payments,leaves,goals,bonuses,trips);
    Days=await days;Extras=await extras;Rates=await rates;Settlements=await settlements;Payments=await payments;Leaves=await leaves;Goals=await goals;
+   Bonuses=await bonuses;Trips=await trips;await UpdateDate();
   } catch(Exception e) {LoadError=e is HttpRequestException?"Brak połączenia. Nie pobrano aktualnych danych; sprawdź internet i odśwież.":e.Message;}
   finally {Loading=false;}
  }
@@ -149,6 +157,20 @@ public sealed class DataStore(HttpClient http, IConfiguration config, IJSRuntime
  }
  public async Task Delete<T>(string table,T row) where T:Row {
   var copy=Clone(row); copy.DeletedAt=DateTimeOffset.UtcNow; await Save(table,copy);
+ }
+ public async Task SaveTrip(Trip trip,List<WorkDay> days,List<WorkDay> previous) {
+  if(LoadError is not null)throw new Exception("Odśwież dane przed zapisem.");
+  if(Demo){
+   if(Days.Any(d=>d.TripId!=trip.Id&&days.Any(x=>x.WorkDate==d.WorkDate)))throw new Exception("Jeden z dni ma już wpis w kalendarzu.");
+   Days.RemoveAll(x=>x.TripId==trip.Id);
+   DemoSave(trip);
+   if(trip.DeletedAt is null)foreach(var day in days){day.TripId=trip.Id;day.DayType="business_trip";DemoSave(day);}
+   return;
+  }
+  await Token();
+  using var req=Make(HttpMethod.Post,"/rest/v1/rpc/mp_save_trip",new {p_trip=trip,p_days=days,p_previous=previous.Select(x=>new{x.Id,x.Version})});
+  req.Headers.Authorization=new("Bearer",Session!.AccessToken);
+  using var res=await http.SendAsync(req);await Ensure(res);await Reload();
  }
  public async Task ImportHistory(JsonObject package,Func<string,Task> progress) {
   if(Demo || Session is null) throw new Exception("Zaloguj się na swoje konto, aby przenieść historię.");
@@ -200,11 +222,12 @@ public sealed class DataStore(HttpClient http, IConfiguration config, IJSRuntime
   switch(row) {
    case WorkDay v: Put(Days,v);break;case ExtraWork v:Put(Extras,v);break;case PayRate v:Put(Rates,v);break;
    case Settlement v:Put(Settlements,v);break;case Payment v:Put(Payments,v);break;case LeaveEntry v:Put(Leaves,v);break;case Goal v:Put(Goals,v);break;
+   case Bonus v:Put(Bonuses,v);break;case Trip v:Put(Trips,v);break;
   }
  }
  static void Put<T>(List<T> list,T row) where T:Row {list.RemoveAll(x=>x.Id==row.Id); if(row.DeletedAt is null)list.Add(row);}
  public void StartDemo() {
-  Demo=true; LoadError=null; Days=[];Extras=[];Rates=[];Settlements=[];Payments=[];Leaves=[];Goals=[];
+  Demo=true; LoadError=null; Days=[];Extras=[];Rates=[];Settlements=[];Payments=[];Leaves=[];Goals=[];Bonuses=[];Trips=[];
   var today=DateOnly.FromDateTime(DateTime.Today);var month=new DateOnly(today.Year,today.Month,1);
   Rates.Add(new(){Version=1,EffectiveFrom=month.AddMonths(-12),BaseNet=7000,HourlyNet=65});
   for(int m=-5;m<0;m++){

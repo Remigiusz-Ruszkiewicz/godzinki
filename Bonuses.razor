@@ -1,0 +1,37 @@
+@inject DataStore Store
+<section class="panel">
+ <div class="panel-heading"><div><span class="eyebrow">OSOBNA KATEGORIA PRZYCHODU</span><h2>Premie · @Month.ToString("MMMM yyyy")</h2></div><button class="primary" @onclick="()=>Edit(null)">＋ Dodaj premię</button></div>
+ <p>Premia jest przypisana do miesiąca pracy. Trafia do sumy zarobków i wykresu premii od @Month.AddMonths(1).ToString("dd.MM.yyyy").</p>
+ @if(!string.IsNullOrEmpty(error)){<div class="alert error" role="alert">@error</div>}
+ @if(!string.IsNullOrEmpty(notice)){<p class="toast" role="status">@notice</p>}
+ @if(Store.Settlements.FirstOrDefault(x=>x.Month==Month) is {BonusNet: not 0} old){<div class="alert">Premia już zawarta w rozliczeniu: @Money(old.BonusNet). Jest uwzględniona w kategorii „Premie”; nie wpisuj jej ponownie. Zmienisz ją w rozliczeniu miesiąca.</div>}
+ @foreach(var b in Store.Bonuses.Where(x=>x.Month==Month)){
+  <div class="list-row"><div class="grow"><strong>@b.Name</strong><small>@b.Notes</small></div><b>@Money(b.AmountNet)</b><button class="text-button" disabled="@busy" @onclick="()=>Edit(b)">Edytuj</button><button class="text-button danger" disabled="@busy" @onclick="()=>removing=b">Usuń</button></div>
+ }
+ @if(!Store.Bonuses.Any(x=>x.Month==Month)){<p class="empty">Dodaj premię uznaniową, projektową lub inną nagrodę za ten miesiąc.</p>}
+ @if(removing is not null){<div class="alert">Usunąć premię „@removing.Name”? Zmniejszy to sumę przychodu za ten miesiąc.<div class="button-row"><button class="secondary" @onclick="()=>removing=null">Anuluj</button><button class="primary" disabled="@busy" @onclick="Remove">Usuń premię</button></div></div>}
+</section>
+@if(edit is not null){
+ <div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-label="Premia"><h2>Premia netto</h2>
+  @if(error!=""){<p class="alert error">@error</p>}
+  <form @onsubmit="Save" @onsubmit:preventDefault>
+   <label>Za miesiąc<input type="month" value="@edit.Month.ToString("yyyy-MM")" @onchange="ChangeMonth" required /></label>
+   <label>Nazwa<input required @bind="edit.Name" @bind:event="oninput" /></label>
+   <label>Kwota netto (PLN)<input type="number" min="0.01" step="0.01" required @bind="edit.AmountNet" @bind:event="oninput" /></label>
+   <label>Notatka<textarea @bind="edit.Notes" @bind:event="oninput"></textarea></label>
+   <div class="modal-actions"><button class="secondary" type="button" disabled="@busy" @onclick="()=>edit=null">Anuluj</button><button class="primary" disabled="@busy">Zapisz premię</button></div>
+  </form>
+ </section></div>
+}
+@code {
+ [Parameter] public DateOnly Month{get;set;}
+ Bonus? edit,removing;bool busy;string error="",notice="";
+ string Money(decimal value)=>value.ToString("N2")+" zł";
+ void Edit(Bonus? value){edit=value is null?new(){Month=Month}:DataStore.Clone(value);error="";notice="";}
+ void ChangeMonth(ChangeEventArgs e){if(edit is not null&&DateOnly.TryParse(e.Value+"-01",out var date))edit.Month=date;}
+ async Task Save(){if(busy||edit is null)return;busy=true;error="";try{
+  if(edit.AmountNet<=0||string.IsNullOrWhiteSpace(edit.Name))throw new Exception("Podaj nazwę i dodatnią kwotę premii.");
+  await Store.Save("bonuses",edit);edit=null;notice="Premia zapisana.";
+ }catch(Exception ex){error=ex.Message;}finally{busy=false;}}
+ async Task Remove(){if(busy||removing is null)return;busy=true;try{await Store.Delete("bonuses",removing);removing=null;notice="Premia usunięta.";}catch(Exception ex){error=ex.Message;}finally{busy=false;}}
+}

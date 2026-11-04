@@ -1,4 +1,5 @@
 window.godzinki = {
+ polishDate: () => new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Warsaw'}),
  getTheme: () => document.documentElement.dataset.theme || 'dark',
  setTheme: theme => {document.documentElement.dataset.theme=theme;try{localStorage.setItem('godzinki.theme',theme);}catch{}document.querySelector('meta[name="theme-color"]')?.setAttribute('content',theme==='dark'?'#030407':'#f6f7f2');},
  online: () => navigator.onLine,
