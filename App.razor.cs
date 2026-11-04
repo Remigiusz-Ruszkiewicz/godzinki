@@ -11,7 +11,7 @@ public partial class App {
  JsonObject? migration; string migrationSummary="",importProgress="";
  WorkDay work=new();ExtraWork extra=new();PayRate rate=new();Settlement settlement=new();Payment payment=new();LeaveEntry leave=new();Goal goal=new();
  string start="",end="";int? manualMinutes; Row? deleting;string deleteTable="";
- readonly string[] pages=["Pulpit","Kalendarz","Rozliczenia","Urlopy","Cele","Ustawienia"];
+ readonly string[] pages=["Pulpit","Miesiąc","Kalendarz","Rozliczenia","Urlopy","Cele","Ustawienia"];
  IEnumerable<WorkDay> MonthDays=>Store.Days.Where(x=>SameMonth(x.WorkDate)).OrderBy(x=>x.WorkDate);
  IEnumerable<ExtraWork> MonthExtras=>Store.Extras.Where(x=>SameMonth(x.WorkDate));
  Settlement? Current=>Store.Settlements.FirstOrDefault(x=>x.Month==month);
@@ -74,7 +74,8 @@ public partial class App {
  void Demo(){Store.StartDemo();page="Pulpit";error="";notice=""; }
  async Task Logout(){await Act(Store.Logout);page="Pulpit";modal="";password="";}
  void MoveMonth(int offset){month=month.AddMonths(offset);error="";notice="";}
- void ChangePage(string p){page=p;error="";notice="";}
+ int dashboardVisit;
+ void ChangePage(string p){page=p;if(p=="Pulpit")dashboardVisit++;error="";notice="";}
  void OpenWork(WorkDay? existing=null,DateOnly? date=null) {
   work=existing is null?new(){WorkDate=date??(SameMonth(DateOnly.FromDateTime(DateTime.Today))?DateOnly.FromDateTime(DateTime.Today):month)}:DataStore.Clone(existing);
   start=work.StartTime?.ToString("HH:mm")??"";end=work.EndTime?.ToString("HH:mm")??"";

@@ -1,7 +1,8 @@
 @using System.Globalization
 @inject DataStore Store
 <section class="panel statistics">
- <div class="panel-heading"><div><span class="eyebrow">TWOJA HISTORIA W LICZBACH</span><h2>Spójrz, ile już za Tobą.</h2></div><span class="tag">Kwoty netto · PLN</span></div>
+ <div class="panel-heading"><div><span class="eyebrow">CAŁA HISTORIA PRACY</span><h2>Od pierwszego dnia do dziś.</h2></div><span class="tag">Pulpit wieloletni</span></div>
+ <p class="fine">Każde wejście na pulpit otwiera cały zapisany okres. Wybór poniżej zmienia wszystkie sumy, wykresy i zestawienia roczne. Szczegóły pojedynczego miesiąca znajdziesz w zakładce „Miesiąc”.</p>
  <div class="range-buttons" aria-label="Zakres statystyk">
   <button class="@(range=="all"?"selected":"")" @onclick='()=>SetRange("all")'>Od początku</button>
   @foreach(var year in Years){<button class="@(range==year.ToString()?"selected":"")" @onclick="()=>SetRange(year.ToString())">@year</button>}
@@ -12,33 +13,29 @@
   <div class="range-inputs"><label>Od miesiąca<input type="month" value="@from" @onchange='e=>from=e.Value?.ToString()??""' /></label><label>Do miesiąca<input type="month" value="@to" @onchange='e=>to=e.Value?.ToString()??""' /></label></div>
  }
  @if(!ValidRange){<p class="alert error">Podaj poprawny zakres — początek nie może być późniejszy niż koniec.</p>}
- else if(Rows.Count==0){<div class="empty">W tym okresie nie ma zatwierdzonych rozliczeń. Wybierz inny rok lub „Od początku”.</div>}
+ else if(Rows.Count==0&&Days.Count==0&&Extras.Count==0){<div class="empty">W tym okresie nie ma zatwierdzonych rozliczeń. Wybierz inny rok lub „Od początku”.</div>}
  else {
   <p class="period-caption">@Start.ToString("MMM yyyy",Pl) – @End.ToString("MMM yyyy",Pl) · @Rows.Count rozliczonych miesięcy</p>
   <div class="stats-kpis">
    <article class="stat-total"><span>Łącznie zarobione</span><strong>@Money(Total)</strong><small>Zatwierdzone należności w wybranym okresie</small></article>
-   <article><span>Średni miesiąc</span><strong>@Money(Total/Rows.Count)</strong><small>Średnia z @Rows.Count rozliczeń</small></article>
-   <article><span>Najlepszy miesiąc ✦</span><strong>@Money(Best.TotalNet??0)</strong><small>@Best.Month.ToString("MMMM yyyy",Pl)</small></article>
+   <article><span>Średni miesiąc</span><strong>@(Rows.Count>0?Money(Total/Rows.Count):"—")</strong><small>Średnia z @Rows.Count rozliczeń</small></article>
+   <article><span>Najlepszy miesiąc ✦</span><strong>@(Best is null?"—":Money(Best.TotalNet??0))</strong><small>@(Best?.Month.ToString("MMMM yyyy",Pl)??"Brak rozliczeń")</small></article>
    <article><span>Ponad podstawę</span><strong>@Money(AboveBase)</strong><small>Czas dodatkowy, premie i korekty</small></article>
   </div>
   <div class="chart-controls">
-   <label>Co pokazujemy?<select @bind="metric"><option value="net">Zarobki miesięczne</option><option value="cumulative">Zarobki narastająco</option><option value="extra">Ponad podstawę</option><option value="hours">Czas do wypłaty (h)</option></select></label>
+   <label>Co pokazujemy?<select @bind="metric"><option value="net">Zarobki miesięczne</option><option value="cumulative">Zarobki narastająco</option><option value="extra">Ponad podstawę</option><option value="hours">Nadgodziny do wypłaty (h)</option><option value="worked">Godziny przepracowane</option><option value="overtime">Nadgodziny w firmie</option></select></label>
    <label>Podział<select @bind="grouping"><option value="month">Miesiące</option><option value="year">Lata</option></select></label>
   </div>
-  <div class="chart-scale"><span>@MetricLabel</span><span>Najwyższy słupek: @ValueLabel(Points.Max(x=>x.Value))</span></div>
-  <div class="history-scroll" tabindex="0" aria-label="Wykres historii. Przewiń poziomo, aby zobaczyć wszystkie okresy.">
-   <div class="history-bars" style="--columns:@Points.Count">
-    @foreach(var point in Points){
-     <button class="history-point @(selected==point.Key?"picked":"")" aria-label="@(point.Label+": "+(point.HasData?ValueLabel(point.Value):"brak rozliczenia"))" title="@(point.Label+": "+ValueLabel(point.Value))" @onclick="()=>selected=point.Key">
-      <span class="point-value">@(point.HasData?Compact(point.Value):"—")</span>
-      <span class="point-track"><span class="point-bar @(point.Value<0?"below-zero":"")" style="height:@Height(point.Value);opacity:@(point.HasData?"1":"0")"></span></span>
-      <span class="point-label">@point.Label</span>
-     </button>
-    }
-   </div>
+  <HistoryChart Title="@MetricLabel" Values="@Points" Unit="@(metric is "hours" or "worked" or "overtime"?"h":"zł")" Description="Zmień zakres powyżej, aby przyjrzeć się wybranemu fragmentowi historii." />
+  <div class="time-kpis">
+   <article><span>Przepracowany czas · zapisane wpisy</span><strong>@Payroll.Duration(WorkedMinutes)</strong><small>@Days.Count dni z ewidencji + @Extras.Count wpisów pracy dodatkowej</small></article>
+   <article><span>Nadgodziny w firmie · dodatnie</span><strong>@Payroll.Duration(Days.Sum(x=>Math.Max(0,Payroll.Overtime(x))))</strong><small>Saldo po odjęciu niedoborów: @Payroll.Duration(Days.Sum(Payroll.Overtime))</small></article>
+   <article><span>Nadgodziny zatwierdzone do wypłaty</span><strong>@Payroll.Duration(Rows.Sum(x=>x.ApprovedMinutes??0))</strong><small>Końcowy czas z rozliczeń, w tym ręczne korekty</small></article>
   </div>
-  @if(Points.FirstOrDefault(x=>x.Key==selected) is { } picked){<div class="point-detail"><strong>@picked.Label</strong><span>@(picked.HasData?ValueLabel(picked.Value):"Brak zatwierdzonego rozliczenia")</span></div>}
-  <p class="fine">Dotknij słupka, aby zobaczyć dokładny wynik. Wykres możesz przewijać. Braki rozliczeń nie są liczone jako zerowy zarobek. Narastająco liczymy od początku wybranego okresu; ujemne korekty oznaczamy kolorem i znakiem minus.</p>
+  <p class="fine">Czas przepracowany to zapisane godziny w firmie i osobne wpisy dodatkowe. Nie dodajemy ponownie nadgodzin zawartych już w dniu pracy. Historia z Excela może mieć niepełną ewidencję: @Days.Count(x=>x.WorkedMinutes is null) wpisów w okresie nie ma podanego czasu. Brak wpisu nie oznacza dnia wolnego.</p>
+  <HistoryChart Title="Godziny przepracowane" Values="@BuildPoints("worked")" Unit="h" Color="#688ca0" Description="Czas zapisany w dniach pracy oraz osobne wpisy pracy dodatkowej. Ten sam zakres co zarobki." />
+  <HistoryChart Title="Nadgodziny w firmie" Values="@BuildPoints("overtime")" Unit="h" Color="#ae8050" Description="Suma dodatniego salda dziennego. Czas ten jest już zawarty w godzinach przepracowanych." />
+  <HistoryChart Title="Nadgodziny do wypłaty" Values="@BuildPoints("hours")" Unit="h" Color="#8777a2" Description="Końcowy czas zatwierdzony w rozliczeniach. Nie sumujemy go z nadgodzinami w firmie." />
   <div class="stats-bottom">
    <article class="milestone"><span class="eyebrow">KOLEJNY KROK</span><h3>@Money(NextMilestone)</h3><p>Do kolejnego progu sumy zarobków w tym okresie brakuje <strong>@Money(NextMilestone-Total)</strong>.</p><progress max="@NextMilestone" value="@Math.Max(0,Total)"></progress><small>To suma zarobków, nie stan oszczędności.</small></article>
    <article class="milestone warm"><span class="eyebrow">CZAS, KTÓRY ZAPROCENTOWAŁ</span><h3>@Payroll.Duration(Rows.Sum(x=>x.ApprovedMinutes??0))</h3><p>Zatwierdzony czas dodatkowy do wypłaty w wybranym okresie. Ręczne rozliczenia z Excela pozostają zachowane.</p><small>Bez ponownego dodawania salda z dni pracy.</small></article>
@@ -52,43 +49,60 @@
     </button>
    }
   </div>
+  <div class="year-table-scroll"><table class="year-table"><caption>Podsumowanie lat w wybranym zakresie</caption><thead><tr><th>Rok</th><th>Zarobki netto</th><th>Przepracowane</th><th>Nadgodziny w firmie</th><th>Saldo w firmie</th><th>Do wypłaty</th><th>Dni z czasem</th></tr></thead><tbody>
+   @foreach(var y in Years.Where(y=>y>=Start.Year&&y<=End.Year)){
+    var dd=Days.Where(x=>x.WorkDate.Year==y).ToList();var ee=Extras.Where(x=>x.WorkDate.Year==y);var ss=Rows.Where(x=>x.Month.Year==y).ToList();
+    <tr><th><button class="text-button" @onclick="()=>SetRange(y.ToString())">@y ↗</button></th><td>@(ss.Count>0?Money(ss.Sum(x=>x.TotalNet??0)):"—")</td><td>@Payroll.Duration(dd.Sum(x=>x.WorkedMinutes??0)+ee.Sum(x=>x.Minutes))</td><td>@Payroll.Duration(dd.Sum(x=>Math.Max(0,Payroll.Overtime(x))))</td><td>@Payroll.Duration(dd.Sum(Payroll.Overtime))</td><td>@(ss.Count>0?Payroll.Duration(ss.Sum(x=>x.ApprovedMinutes??0)):"—")</td><td>@dd.Count(x=>x.WorkedMinutes.HasValue) / @dd.Count</td></tr>
+   }
+  </tbody><tfoot><tr><th>Razem</th><td>@Money(Total)</td><td>@Payroll.Duration(WorkedMinutes)</td><td>@Payroll.Duration(Days.Sum(x=>Math.Max(0,Payroll.Overtime(x))))</td><td>@Payroll.Duration(Days.Sum(Payroll.Overtime))</td><td>@Payroll.Duration(Rows.Sum(x=>x.ApprovedMinutes??0))</td><td>@Days.Count(x=>x.WorkedMinutes.HasValue) / @Days.Count</td></tr></tfoot></table></div>
   <p class="fine">Porównania rok do roku obejmują wyłącznie te same rozliczone miesiące obu lat. Nie porównujemy niepełnego roku z pełnym.</p>
  }
 </section>
 
 @code {
  static readonly CultureInfo Pl=CultureInfo.GetCultureInfo("pl-PL");
- string range="all",metric="net",grouping="month",from="",to="",selected="";
+ string range="all",metric="net",grouping="month",from="",to="";
  List<Settlement> All=>Store.Settlements.Where(x=>x.Status=="approved"&&x.TotalNet.HasValue).OrderBy(x=>x.Month).ToList();
- IEnumerable<int> Years=>All.Select(x=>x.Month.Year).Distinct().OrderDescending();
+ IEnumerable<int> Years=>DataMonths.Select(x=>x.Year).Distinct().OrderDescending();
+ IEnumerable<DateOnly> DataMonths=>All.Select(x=>x.Month).Concat(Store.Days.Select(x=>MonthOf(x.WorkDate))).Concat(Store.Extras.Select(x=>MonthOf(x.WorkDate)));
+ static DateOnly MonthOf(DateOnly d)=>new(d.Year,d.Month,1);
+ bool InRange(DateOnly date)=>MonthOf(date)>=Start&&MonthOf(date)<=End;
+ List<WorkDay> Days=>Store.Days.Where(x=>InRange(x.WorkDate)).ToList();
+ List<ExtraWork> Extras=>Store.Extras.Where(x=>InRange(x.WorkDate)).ToList();
+ int WorkedMinutes=>Days.Sum(x=>x.WorkedMinutes??0)+Extras.Sum(x=>x.Minutes);
  DateOnly TodayMonth=>new(DateTime.Today.Year,DateTime.Today.Month,1);
- DateOnly First=>All.FirstOrDefault()?.Month??TodayMonth;
- DateOnly Last=>All.LastOrDefault()?.Month??TodayMonth;
+ DateOnly First=>DataMonths.DefaultIfEmpty(TodayMonth).Min();
+ DateOnly Last=>DataMonths.DefaultIfEmpty(TodayMonth).Max();
  DateOnly Start=>range switch {"all"=>First,"12"=>TodayMonth.AddMonths(-11),"custom"=>ParseMonth(from)??First,_=>int.TryParse(range,out var y)?new(y,1,1):First};
  DateOnly End=>range switch {"all"=>Last,"12"=>TodayMonth,"custom"=>ParseMonth(to)??Last,_=>int.TryParse(range,out var y)?new(y,12,1):Last};
  bool ValidRange=>Start<=End && (range!="custom" || ParseMonth(from) is not null && ParseMonth(to) is not null);
  List<Settlement> Rows=>ValidRange?All.Where(x=>x.Month>=Start&&x.Month<=End).ToList():[];
  decimal Total=>Rows.Sum(x=>x.TotalNet??0);
  decimal AboveBase=>Rows.Sum(x=>(x.TotalNet??0)-(x.BaseNetSnapshot??0));
- Settlement Best=>Rows.MaxBy(x=>x.TotalNet)!;
+ Settlement? Best=>Rows.MaxBy(x=>x.TotalNet);
  decimal NextMilestone {get{var step=Total<100000?10000m:100000m;return Math.Max(step,(decimal.Floor(Total/step)+1)*step);}}
- string MetricLabel=>metric switch {"hours"=>"Godziny do wypłaty","extra"=>"Ponad podstawę · zł netto","cumulative"=>"Suma narastająco · zł netto",_=>"Zarobki · zł netto"};
- record Point(string Key,string Label,decimal Value,bool HasData);
- List<Point> Points {
-  get {
-   var rows=Rows;if(rows.Count==0)return [];
-   var byMonth=rows.ToDictionary(x=>x.Month);var points=new List<Point>();decimal running=0;
-   // Restrict empty padding to the actual data span; gaps inside it remain visible.
-   var start=rows.First().Month;var end=rows.Last().Month;
-   for(var d=start;d<=end;d=d.AddMonths(1)){
-    byMonth.TryGetValue(d,out var s);
-    var value=s is null?0:metric switch {"hours"=>(s.ApprovedMinutes??0)/60m,"extra"=>(s.TotalNet??0)-(s.BaseNetSnapshot??0),_=>s.TotalNet??0};
-    running+=value;
-    points.Add(new(d.ToString("yyyy-MM"),d.ToString("MMM yy",Pl),metric=="cumulative"?running:value,s is not null));
-   }
-   if(grouping=="month")return points;
-   return points.GroupBy(x=>x.Key[..4]).Select(g=>new Point(g.Key,g.Key,metric=="cumulative"?g.Last().Value:g.Sum(x=>x.Value),g.Any(x=>x.HasData))).ToList();
+ string MetricLabel=>metric switch {"worked"=>"Godziny przepracowane","overtime"=>"Nadgodziny w firmie","hours"=>"Godziny do wypłaty","extra"=>"Ponad podstawę · zł netto","cumulative"=>"Suma narastająco · zł netto",_=>"Zarobki · zł netto"};
+
+ List<HistoryPoint> Points=>BuildPoints(metric);
+ List<HistoryPoint> BuildPoints(string kind) {
+  if(!ValidRange)return [];
+  var settlements=Rows.ToDictionary(x=>x.Month);
+  var days=Days.GroupBy(x=>MonthOf(x.WorkDate)).ToDictionary(x=>x.Key,x=>x.ToList());
+  var extras=Extras.GroupBy(x=>MonthOf(x.WorkDate)).ToDictionary(x=>x.Key,x=>x.ToList());
+  var points=new List<HistoryPoint>();decimal running=0;
+  for(var d=Start;d<=End;d=d.AddMonths(1)){
+   settlements.TryGetValue(d,out var s);days.TryGetValue(d,out var dd);extras.TryGetValue(d,out var ee);
+   bool present=kind switch {"worked"=>(dd?.Any(x=>x.WorkedMinutes.HasValue)??false)||(ee?.Count>0),"overtime"=>dd?.Any(x=>x.WorkedMinutes.HasValue||x.OvertimeMinutesOverride.HasValue)??false,_=>s is not null};
+   decimal value=kind switch {
+    "worked"=>((dd?.Sum(x=>x.WorkedMinutes??0)??0)+(ee?.Sum(x=>x.Minutes)??0))/60m,
+    "overtime"=>(dd?.Sum(x=>Math.Max(0,Payroll.Overtime(x)))??0)/60m,
+    "hours"=>(s?.ApprovedMinutes??0)/60m,
+    "extra"=>(s?.TotalNet??0)-(s?.BaseNetSnapshot??0),_=>s?.TotalNet??0};
+   running+=value;
+   points.Add(new(d.ToString("yyyy-MM"),d.ToString("MMM yy",Pl),kind=="cumulative"?running:value,present));
   }
+  if(grouping=="month")return points;
+  return points.GroupBy(x=>x.Key[..4]).Select(g=>new HistoryPoint(g.Key,g.Key,kind=="cumulative"?g.Last().Value:g.Sum(x=>x.Value),g.Any(x=>x.HasData))).ToList();
  }
  (decimal Percent,int Months)? CompareYear(int year){
   var current=Rows.Where(x=>x.Month.Year==year).ToList();
@@ -97,10 +111,7 @@
   var before=shared.Sum(x=>prior[x.Month.Month].TotalNet??0);
   return shared.Count==0||before<=0?null:((shared.Sum(x=>x.TotalNet??0)-before)/before*100,shared.Count);
  }
- void SetRange(string value){range=value;selected="";if(value=="custom"&&from==""){from=First.ToString("yyyy-MM");to=Last.ToString("yyyy-MM");}}
+ void SetRange(string value){range=value;if(value=="custom"&&from==""){from=First.ToString("yyyy-MM");to=Last.ToString("yyyy-MM");}}
  static DateOnly? ParseMonth(string value)=>DateOnly.TryParseExact(value+"-01","yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var date)?date:null;
  string Money(decimal value)=>value.ToString("N2",Pl)+" zł";
- string ValueLabel(decimal value)=>metric=="hours"?value.ToString("N2",Pl)+" h":Money(value);
- string Compact(decimal value)=>Math.Abs(value)>=1000?(value/1000).ToString("0.#",Pl)+" tys.":value.ToString("0.#",Pl);
- string Height(decimal value)=>(Math.Abs(value)/Math.Max(1,Points.Max(x=>Math.Abs(x.Value)))*100).ToString("0.##",CultureInfo.InvariantCulture)+"%";
 }

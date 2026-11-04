@@ -33,7 +33,7 @@
    <a class="brand" href="./"><span class="brand-icon">g.</span>godzinki</a>
    <span class="nav-caption">TWOJA PRZESTRZEŃ</span>
    <nav aria-label="Nawigacja główna">
-    @foreach(var p in pages){<button class="nav-item @(page==p?"active":"")" @onclick="()=>ChangePage(p)"><span class="nav-symbol">@(p switch{"Pulpit"=>"◈","Kalendarz"=>"▦","Rozliczenia"=>"↗","Urlopy"=>"☼","Cele"=>"◎",_=>"⚙"})</span>@p</button>}
+    @foreach(var p in pages){<button class="nav-item @(page==p?"active":"")" @onclick="()=>ChangePage(p)"><span class="nav-symbol">@(p switch{"Pulpit"=>"◈","Miesiąc"=>"◷","Kalendarz"=>"▦","Rozliczenia"=>"↗","Urlopy"=>"☼","Cele"=>"◎",_=>"⚙"})</span>@p</button>}
    </nav>
    <div class="sidebar-bottom"><div class="small-note">Każda godzina<br>buduje Twój wynik.</div><div class="profile"><span class="avatar">@Initials</span><div><strong>@(Store.Demo?"Tryb demo":"Twoje konto")</strong><small>@(Store.Demo?"Dane przykładowe":"Prywatna przestrzeń")</small></div></div><button class="text-button" @onclick="Logout">@(Store.Demo?"Wyjdź z demo":"Wyloguj się")</button></div>
   </aside>
@@ -43,9 +43,13 @@
    @if(Store.LoadError is not null){<div class="alert error" role="alert">@Store.LoadError <button @onclick='()=>Act(Store.Reload)' class="text-button">Spróbuj ponownie</button></div>}
    @if(!string.IsNullOrEmpty(error)&&modal==""){<div class="alert error" role="alert">@error</div>}
    @if(!string.IsNullOrEmpty(notice)){<div class="toast" role="status">@notice</div>}
+   @if(page!="Pulpit"){
    <div class="toolbar"><div class="month-picker"><button aria-label="Poprzedni miesiąc" @onclick="()=>MoveMonth(-1)">‹</button><select aria-label="Miesiąc" @bind="SelectedMonth">@for(int m=1;m<=12;m++){<option value="@m">@(new DateOnly(2000,m,1).ToString("MMMM"))</option>}</select><select aria-label="Rok" @bind="SelectedYear">@foreach(var y in NavigationYears){<option value="@y">@y</option>}</select><button aria-label="Następny miesiąc" @onclick="()=>MoveMonth(1)">›</button></div><div class="button-row"><button class="secondary" @onclick="()=>OpenExtra()">＋ Praca dodatkowa</button><button class="primary" @onclick="()=>OpenWork()">＋ Dodaj dzień</button></div></div>
+   }
    @if(page=="Pulpit"){
-    <Statistics />
+    <Statistics @key="dashboardVisit" />
+   }
+   else if(page=="Miesiąc"){
     <div class="section-intro"><h2>Twój miesiąc · @MonthName</h2><span class="tag">Szczegóły wybranego miesiąca</span></div>
     <section class="overview">
      <article class="hero-card"><div class="hero-top"><span class="eyebrow light">@(Current?.Status=="approved"?"ZATWIERDZONE NETTO":"SZACUNEK MIESIĄCA NETTO")</span><span class="pill">PLN</span></div><div class="big-money">@Money(Estimate)</div><p>@(Current is not null?"Rozliczenie zachowuje zatwierdzone godziny i stawki.":"Pełna podstawa + dotychczasowy czas dodatkowy. To nie jest prognoza końca miesiąca.")</p><div class="hero-bottom"><div><small>Podstawa</small><strong>@Money(Current?.BaseNetSnapshot??CurrentRate?.BaseNet)</strong></div><div><small>@(Current is null?"Dodatkowo · szacunek":"Ponad podstawę")</small><strong>@Money(Estimate-(Current?.BaseNetSnapshot??CurrentRate?.BaseNet))</strong></div><button aria-label="Przejdź do rozliczenia" @onclick='()=>ChangePage("Rozliczenia")'>↗</button></div></article>

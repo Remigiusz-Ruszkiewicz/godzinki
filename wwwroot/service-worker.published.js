@@ -24,6 +24,9 @@ async function onInstall(event) {
         .filter(asset => !offlineAssetsExclude.some(pattern => pattern.test(asset.url)))
         .map(asset => new Request(asset.url, { integrity: asset.hash, cache: 'no-cache' }));
     await caches.open(cacheName).then(cache => cache.addAll(assetsRequests));
+    // Activate the complete new cache now, so the next navigation receives the
+    // update even while another tab remains open. Do not reload or claim open forms.
+    await self.skipWaiting();
 }
 
 async function onActivate(event) {

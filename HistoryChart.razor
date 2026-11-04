@@ -1,0 +1,42 @@
+@using System.Globalization
+<article class="history-chart-panel">
+ <h3>@Title</h3><p class="fine">@Description</p>
+ @if(Values.Count==0 || !Values.Any(x=>x.HasData)){<p class="empty">Brak danych w tym okresie.</p>}
+ else {
+ <div class="line-chart">
+ <svg viewBox="0 0 900 245" role="img" aria-label="@Title">
+  @for(int i=0;i<=4;i++){var y=20+i*45;var value=Max-(Max-Min)*i/4;
+   <line x1="85" y1="@y" x2="875" y2="@y" stroke="#e1e8dc" />
+   <g><text x="75" y="@(y+4)" text-anchor="end" fill="#728269" font-size="12">@value.ToString("N0",Pl)</text></g>
+  }
+  @for(int i=1;i<Values.Count;i++){
+   @if(Values[i-1].HasData&&Values[i].HasData){<line x1="@N(X(i-1))" y1="@N(Y(Values[i-1].Value))" x2="@N(X(i))" y2="@N(Y(Values[i].Value))" stroke="@Color" stroke-width="3" />}
+  }
+  @for(int i=0;i<Values.Count;i++){var index=i;var point=Values[i];
+   @if(point.HasData){<g tabindex="0" role="button" aria-label="@(point.Label+": "+Format(point.Value))" @onclick="()=>selected=index" @onkeydown='e=>{if(e.Key=="Enter"||e.Key==" ")selected=index;}'>
+    <circle cx="@N(X(i))" cy="@N(Y(point.Value))" r="11" fill="transparent"><title>@point.Label: @Format(point.Value)</title></circle>
+    <circle cx="@N(X(i))" cy="@N(Y(point.Value))" r="@(selected==i?6:3)" fill="@Color" style="pointer-events:none" />
+   </g>}
+   @if(i==0||i==Values.Count-1||i%Math.Max(1,(int)Math.Ceiling(Values.Count/7d))==0){<g><text x="@N(X(i))" y="225" text-anchor="middle" fill="#728269" font-size="12">@point.Label</text></g>}
+  }
+ </svg>
+ </div>
+ @if(selected>=0&&selected<Values.Count&&Values[selected].HasData){<div class="point-detail"><strong>@Values[selected].Label</strong><span>@Format(Values[selected].Value)</span></div>}
+ <p class="fine">Cały okres mieści się na wykresie. Dotknij punktu, aby odczytać wartość. Przerwa w linii oznacza brak danych.</p>
+ }
+</article>
+@code {
+ [Parameter] public string Title{get;set;}="";
+ [Parameter] public string Description{get;set;}="";
+ [Parameter] public string Unit{get;set;}="zł";
+ [Parameter] public string Color{get;set;}="#527749";
+ [Parameter] public List<HistoryPoint> Values{get;set;}=[];
+ int selected=-1;
+ static readonly CultureInfo Pl=CultureInfo.GetCultureInfo("pl-PL");
+ decimal Min=>Math.Min(0,Values.Where(x=>x.HasData).Select(x=>x.Value).DefaultIfEmpty(0).Min());
+ decimal Max=>Math.Max(Min+1,Values.Where(x=>x.HasData).Select(x=>x.Value).DefaultIfEmpty(0).Max());
+ double X(int i)=>85+(Values.Count<=1?395:i*790d/(Values.Count-1));
+ double Y(decimal v)=>20+(double)((Max-v)/(Max-Min))*180;
+ string N(double v)=>v.ToString("0.##",CultureInfo.InvariantCulture);
+ string Format(decimal v)=>v.ToString("N2",Pl)+" "+Unit;
+}
