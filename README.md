@@ -15,6 +15,10 @@ Konto panelu administracyjnego Supabase nie jest kontem aplikacji.
 ## Zakres tej wersji
 - Logowanie, rejestracja z potwierdzeniem e-maila, odświeżanie sesji, wylogowanie.
 - Pulpit i historia zatwierdzonych kwot, kalendarz, osobna praca dodatkowa.
+- Statystyki od początku historii, filtry lat i własnego okresu, wykresy miesięczne
+  i roczne: zarobki, narastająco, ponad podstawę oraz czas do wypłaty. Rekord
+  miesiąca, średnia, progi sumy zarobków i porównanie wspólnych miesięcy rok do roku.
+- Bezpośredni wybór miesiąca i roku; historia rozliczeń pogrupowana rocznikami.
 - Czas przez północ, przerwy, ujemne saldo i ręczne nadpisanie salda.
 - Historyczne stawki netto; ręcznie zatwierdzane miesięczne migawki rozliczeń.
 - Premie i korekty, rzeczywiste wypłaty, księga urlopów, cele.

@@ -25,6 +25,11 @@ public partial class App {
  decimal PaidForMonth=>Current is null?0:Store.Payments.Where(x=>x.SettlementId==Current.Id).Sum(x=>x.AmountNet);
  decimal LeaveBalance=>Store.Leaves.Where(x=>x.EntitlementYear==month.Year).Sum(x=>x.DaysDelta);
  string MonthName=>month.ToString("MMMM yyyy",CultureInfo.GetCultureInfo("pl-PL"));
+ int SelectedYear {get=>month.Year;set=>month=new(value,month.Month,1);}
+ int SelectedMonth {get=>month.Month;set=>month=new(month.Year,value,1);}
+ IEnumerable<int> NavigationYears=>Store.Settlements.Select(x=>x.Month.Year)
+  .Concat(Store.Days.Select(x=>x.WorkDate.Year)).Concat(Store.Leaves.Select(x=>x.EntitlementYear))
+  .Append(DateTime.Today.Year).Append(DateTime.Today.Year+1).Append(month.Year).Distinct().OrderDescending();
  bool SameMonth(DateOnly d)=>d.Year==month.Year&&d.Month==month.Month;
  string Money(decimal? amount)=>amount is null?"—":amount.Value.ToString("N2")+" zł";
  string Duration(int m)=>Payroll.Duration(m);
@@ -128,8 +133,6 @@ public partial class App {
  },"Zapisano.");
  decimal GoalValue(Goal g)=>g.Basis=="paid"?Store.Payments.Where(x=>x.PaidOn>=g.StartsOn&&x.PaidOn<=g.EndsOn).Sum(x=>x.AmountNet):Store.Settlements.Where(x=>x.Status=="approved"&&x.Month>=g.StartsOn&&x.Month<=g.EndsOn).Sum(x=>x.TotalNet??0);
  string Percent(decimal value,decimal max)=>Math.Clamp(max>0?value/max*100:0,0,100).ToString("0.##",CultureInfo.InvariantCulture)+"%";
- IEnumerable<(DateOnly Month,decimal Value)> History=>Enumerable.Range(-5,6).Select(i=>{var m=month.AddMonths(i);return(m,Store.Settlements.Where(x=>x.Month==m&&x.Status=="approved").Sum(x=>x.TotalNet??0));});
- decimal ChartMax=>Math.Max(1,History.Max(x=>x.Value));
  async Task Export()=>await Act(async()=>{
   var snapshot=new{format="godzinki-backup-v1",exportedAt=DateTimeOffset.UtcNow,days=Store.Days,extraWork=Store.Extras,rates=Store.Rates,settlements=Store.Settlements,payments=Store.Payments,leave=Store.Leaves,goals=Store.Goals};
   await JS.InvokeVoidAsync("godzinki.download",$"godzinki-{DateTime.Today:yyyy-MM-dd}.json",JsonSerializer.Serialize(snapshot,new JsonSerializerOptions(DataStore.Json){WriteIndented=true}),"application/json");

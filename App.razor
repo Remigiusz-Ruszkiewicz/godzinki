@@ -43,20 +43,17 @@
    @if(Store.LoadError is not null){<div class="alert error" role="alert">@Store.LoadError <button @onclick='()=>Act(Store.Reload)' class="text-button">Spróbuj ponownie</button></div>}
    @if(!string.IsNullOrEmpty(error)&&modal==""){<div class="alert error" role="alert">@error</div>}
    @if(!string.IsNullOrEmpty(notice)){<div class="toast" role="status">@notice</div>}
-   <div class="toolbar"><div class="month-picker"><button aria-label="Poprzedni miesiąc" @onclick="()=>MoveMonth(-1)">‹</button><span>@MonthName</span><button aria-label="Następny miesiąc" @onclick="()=>MoveMonth(1)">›</button></div><div class="button-row"><button class="secondary" @onclick="()=>OpenExtra()">＋ Praca dodatkowa</button><button class="primary" @onclick="()=>OpenWork()">＋ Dodaj dzień</button></div></div>
+   <div class="toolbar"><div class="month-picker"><button aria-label="Poprzedni miesiąc" @onclick="()=>MoveMonth(-1)">‹</button><select aria-label="Miesiąc" @bind="SelectedMonth">@for(int m=1;m<=12;m++){<option value="@m">@(new DateOnly(2000,m,1).ToString("MMMM"))</option>}</select><select aria-label="Rok" @bind="SelectedYear">@foreach(var y in NavigationYears){<option value="@y">@y</option>}</select><button aria-label="Następny miesiąc" @onclick="()=>MoveMonth(1)">›</button></div><div class="button-row"><button class="secondary" @onclick="()=>OpenExtra()">＋ Praca dodatkowa</button><button class="primary" @onclick="()=>OpenWork()">＋ Dodaj dzień</button></div></div>
    @if(page=="Pulpit"){
+    <Statistics />
+    <div class="section-intro"><h2>Twój miesiąc · @MonthName</h2><span class="tag">Szczegóły wybranego miesiąca</span></div>
     <section class="overview">
      <article class="hero-card"><div class="hero-top"><span class="eyebrow light">@(Current?.Status=="approved"?"ZATWIERDZONE NETTO":"SZACUNEK MIESIĄCA NETTO")</span><span class="pill">PLN</span></div><div class="big-money">@Money(Estimate)</div><p>@(Current is not null?"Rozliczenie zachowuje zatwierdzone godziny i stawki.":"Pełna podstawa + dotychczasowy czas dodatkowy. To nie jest prognoza końca miesiąca.")</p><div class="hero-bottom"><div><small>Podstawa</small><strong>@Money(Current?.BaseNetSnapshot??CurrentRate?.BaseNet)</strong></div><div><small>@(Current is null?"Dodatkowo · szacunek":"Ponad podstawę")</small><strong>@Money(Estimate-(Current?.BaseNetSnapshot??CurrentRate?.BaseNet))</strong></div><button aria-label="Przejdź do rozliczenia" @onclick='()=>ChangePage("Rozliczenia")'>↗</button></div></article>
      <article class="metric-card"><span class="metric-icon">◷</span><span class="eyebrow">ZAPISANY CZAS</span><strong>@Duration(TotalMinutes)</strong><p>@MonthDays.Count() dni z wpisem<br>+ @Duration(ExtraMinutes) pracy dodatkowej</p><div class="metric-footer">Saldo w firmie <b>@Duration(CompanyMinutes)</b></div></article>
      <article class="metric-card"><span class="metric-icon sand">↗</span><span class="eyebrow">ZATWIERDZONE W @month.Year</span><strong>@Money(YearNet)</strong><p>Suma zatwierdzonych rozliczeń.<br>Twój postęp, miesiąc po miesiącu.</p><div class="metric-footer">Urlop do wykorzystania <b>@LeaveBalance.ToString("0.##") dni</b></div></article>
     </section>
     @if(CurrentRate is null&&Current is null){<div class="alert">Zacznij od swojej podstawy i stawki za nadgodziny. <button class="text-button" @onclick="()=>OpenRate()">Ustaw stawki →</button></div>}
-    <section class="dashboard-grid">
-     <article class="panel"><div class="panel-heading"><div><span class="eyebrow">SZERSZA PERSPEKTYWA</span><h2>Tak rośnie Twój wynik</h2></div><span class="tag">6 miesięcy · netto</span></div>
-      <div class="chart" role="img" aria-label="Zatwierdzone zarobki w ostatnich sześciu miesiącach">
-       @foreach(var item in History){<div class="chart-column"><span>@(item.Value>0?item.Value.ToString("N0"):"—")</span><div class="bar-track"><div class="bar @(item.Month==month?"current":"")" style="height:@Percent(item.Value,ChartMax)"></div></div><small>@item.Month.ToString("MMM")</small></div>}
-      </div><p class="fine">Tylko zatwierdzone rozliczenia. Brak słupka oznacza brak zatwierdzonej kwoty.</p>
-     </article>
+    <section>
      <article class="panel goal-panel"><span class="eyebrow">MAŁE KROKI, KONKRETNY CEL</span><h2>Po co te godzinki?</h2>
       @if(Store.Goals.Count==0){<div class="empty-small"><span>◎</span><p>Nadaj swoim liczbom kierunek.</p><button class="secondary" @onclick="()=>OpenGoal()">Dodaj pierwszy cel</button></div>}
       @foreach(var g in Store.Goals.Take(2)){var value=GoalValue(g);<div class="goal-preview"><div><strong>@g.Name</strong><span>@Percent(value,g.TargetNet)</span></div><progress max="@g.TargetNet" value="@Math.Min(value,g.TargetNet)"></progress><small>@Money(value) z @Money(g.TargetNet)</small><p>Jeszcze @Money(Math.Max(0,g.TargetNet-value)) do celu.</p></div>}
@@ -96,7 +93,13 @@
     </article><article class="hero-card"><span class="eyebrow light">@(Current is null?"JESZCZE NIE ZATWIERDZONO":"ZATWIERDZONE NETTO")</span><div class="big-money">@Money(Current?.TotalNet)</div><p>@(Current is null?"Najpierw sprawdź godziny i zatwierdź rozliczenie.":$"Do wypłaty zatwierdzono {Duration(Current.ApprovedMinutes??0)}.")</p><div class="summary-line"><span>Otrzymano</span><strong>@Money(PaidForMonth)</strong></div><div class="summary-line"><span>Pozostało</span><strong>@Money(Current is null?null:Math.Max(0,(Current.TotalNet??0)-PaidForMonth))</strong></div><button class="light-button" disabled="@(Current is null)" @onclick="OpenPayment">＋ Zapisz otrzymaną wypłatę</button></article></section>
     <section class="panel"><h2>Wpłaty za ten miesiąc</h2>@if(Current is null || !Store.Payments.Any(x=>x.SettlementId==Current.Id)){<div class="empty">Wpisz kwotę, gdy pieniądze faktycznie do Ciebie trafią.</div>}
     @foreach(var p in Store.Payments.Where(x=>x.SettlementId==Current?.Id)){<div class="list-row"><span>@DayLabel(p.PaidOn)</span><span class="grow">@p.Notes</span><strong>@Money(p.AmountNet)</strong><button class="text-button danger" @onclick='()=>AskDelete(p,"payments")'>Usuń</button></div>}</section>
-    <section class="panel"><h2>Historia rozliczeń</h2>@foreach(var s in Store.Settlements.OrderByDescending(x=>x.Month)){<button class="entry-row" @onclick="()=>{month=s.Month;OpenSettlement();}"><strong class="grow">@s.Month.ToString("MMMM yyyy")</strong><span>@Duration(s.ApprovedMinutes??0)</span><b>@Money(s.TotalNet)</b><span class="tag">@(s.Status=="approved"?"Zatwierdzone":"Szkic")</span></button>}</section>
+    <section class="panel"><h2>Historia rozliczeń według lat</h2>
+     @foreach(var year in Store.Settlements.GroupBy(x=>x.Month.Year).OrderByDescending(x=>x.Key)){
+      <details class="settlement-year" open="@(year.Key==month.Year)"><summary><strong>@year.Key</strong><span>@year.Count() mies.</span><b>@Money(year.Where(x=>x.Status=="approved").Sum(x=>x.TotalNet??0)) netto</b></summary>
+       @foreach(var s in year.OrderByDescending(x=>x.Month)){<button class="entry-row" @onclick="()=>{month=s.Month;OpenSettlement();}"><strong class="grow">@s.Month.ToString("MMMM yyyy")</strong><span>@Duration(s.ApprovedMinutes??0)</span><b>@Money(s.TotalNet)</b><span class="tag">@(s.Status=="approved"?"Zatwierdzone":"Szkic")</span></button>}
+      </details>
+     }
+    </section>
    }
    else if(page=="Urlopy"){
     <section class="overview two"><article class="hero-card"><span class="eyebrow light">TWÓJ CZAS DLA SIEBIE · @month.Year</span><div class="big-money">@LeaveBalance.ToString("0.##") <small>dni</small></div><p>Pozostały urlop według zapisanych przydziałów, przeniesień i wykorzystania.</p></article><article class="panel"><h2>Odpoczynek też jest w planie.</h2><p>Wpisz roczny limit, przenieś zaległe dni albo dodaj wykorzystany urlop. Przydział może być inny w każdym roku.</p><button class="primary" @onclick="()=>OpenLeave()">＋ Dodaj zmianę urlopu</button></article></section>
