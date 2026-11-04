@@ -8,6 +8,8 @@ namespace Godzinki;
 public partial class App {
  string page="Pulpit", modal="", email="",password="",authMode="login",notice="",error="";
  bool initialized,busy; DateOnly month=new(DateTime.Today.Year,DateTime.Today.Month,1);
+ bool darkTheme=true;
+ async Task ToggleTheme(){darkTheme=!darkTheme;await JS.InvokeVoidAsync("godzinki.setTheme",darkTheme?"dark":"light");}
  JsonObject? migration; string migrationSummary="",importProgress="";
  WorkDay work=new();ExtraWork extra=new();PayRate rate=new();Settlement settlement=new();Payment payment=new();LeaveEntry leave=new();Goal goal=new();
  string start="",end="";int? manualMinutes; Row? deleting;string deleteTable="";
@@ -38,7 +40,7 @@ public partial class App {
  string DayType(string k)=>k switch {"work"=>"Praca","leave"=>"Urlop","off"=>"Wolne","holiday"=>"Święto","sick"=>"Chorobowe","business_trip"=>"Delegacja",_=>k};
  string Initials=>Store.Demo?"DE":(Store.Session?.User.Email.FirstOrDefault().ToString().ToUpperInvariant()??"JA");
  protected override async Task OnAfterRenderAsync(bool first) {
-  if(first){await Act(Store.Initialize);ShowLatestHistory();initialized=true;StateHasChanged();}
+  if(first){darkTheme=await JS.InvokeAsync<string>("godzinki.getTheme")=="dark";await Act(Store.Initialize);ShowLatestHistory();initialized=true;StateHasChanged();}
  }
  async Task Act(Func<Task> action,string success="") {
   if(busy)return;busy=true;error="";notice="";

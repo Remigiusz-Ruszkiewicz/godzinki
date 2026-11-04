@@ -97,10 +97,11 @@ public sealed class DataStore(HttpClient http, IConfiguration config, IJSRuntime
   try {
    await Token();
    // Replace only after all requests succeed, avoiding a partially refreshed dashboard.
-   var days=await Read<WorkDay>("work_days"); var extras=await Read<ExtraWork>("extra_work");
-   var rates=await Read<PayRate>("pay_rates"); var settlements=await Read<Settlement>("settlements");
-   var payments=await Read<Payment>("payments"); var leaves=await Read<LeaveEntry>("leave_ledger"); var goals=await Read<Goal>("goals");
-   Days=days;Extras=extras;Rates=rates;Settlements=settlements;Payments=payments;Leaves=leaves;Goals=goals;
+   var days=Read<WorkDay>("work_days"); var extras=Read<ExtraWork>("extra_work");
+   var rates=Read<PayRate>("pay_rates"); var settlements=Read<Settlement>("settlements");
+   var payments=Read<Payment>("payments"); var leaves=Read<LeaveEntry>("leave_ledger"); var goals=Read<Goal>("goals");
+   await Task.WhenAll(days,extras,rates,settlements,payments,leaves,goals);
+   Days=await days;Extras=await extras;Rates=await rates;Settlements=await settlements;Payments=await payments;Leaves=await leaves;Goals=await goals;
   } catch(Exception e) {LoadError=e is HttpRequestException?"Brak połączenia. Nie pobrano aktualnych danych; sprawdź internet i odśwież.":e.Message;}
   finally {Loading=false;}
  }

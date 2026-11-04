@@ -1,0 +1,65 @@
+.theme-toggle{font-size:12px;padding:8px 12px;min-height:38px}.auth-inner>.theme-toggle{margin-bottom:24px}
+html[data-theme=dark]{color-scheme:dark;background:#030407;color:#eaf0fa;--green:#d4ff24;--muted:#a3afc3;--line:#263044;--lime:#d4ff24;--chart-grid:#263044;--chart-label:#a3afc3;--hours-chart:#66adff;--overtime-chart:#d4ff24}
+[data-theme=dark] body{background:#030407;color:#eaf0fa}
+[data-theme=dark] .sidebar,[data-theme=dark] .modal{background:#0b101a;border-color:#263044}
+[data-theme=dark] .panel,[data-theme=dark] .metric-card,[data-theme=dark] .year-card{background:#101623;border-color:#263044;color:#eaf0fa}
+[data-theme=dark] .primary{background:#1558c9;color:#fff;border-color:#226be6}
+[data-theme=dark] .primary:hover{background:#2169e2}
+[data-theme=dark] .secondary,[data-theme=dark] .icon-button,[data-theme=dark] .month-picker button{background:#131d2e;border-color:#34415a;color:#eaf0fa}
+[data-theme=dark] .secondary:hover,[data-theme=dark] .icon-button:hover{background:#20304b}
+[data-theme=dark] .light-button,[data-theme=dark] .hero-bottom button{background:#d4ff24;color:#030407}
+[data-theme=dark] .brand-icon{background:#1558c9;color:#d4ff24}
+[data-theme=dark] .auth-story{background:linear-gradient(145deg,#0b1730,#1558c9);color:#fff}
+[data-theme=dark] .auth-story h1 em{color:#d4ff24}
+[data-theme=dark] .auth-story .brand-icon{background:#d4ff24;color:#030407}
+[data-theme=dark] .auth-story p,[data-theme=dark] .story-foot{color:#d5e4ff}
+[data-theme=dark] .hero-card,[data-theme=dark] .stats-kpis article.stat-total{background:linear-gradient(125deg,#102249,#1558c9);color:#fff}
+[data-theme=dark] .hero-card p,[data-theme=dark] .hero-bottom small,[data-theme=dark] .eyebrow.light{color:#c9daf6}
+[data-theme=dark] .hero-bottom,[data-theme=dark] .hero-card .summary-line{border-color:#ffffff35}
+[data-theme=dark] .pill{border-color:#a8bde775;color:#e8effc}
+[data-theme=dark] input,[data-theme=dark] select,[data-theme=dark] textarea{background:#090f1a;border-color:#34415a;color:#eef3fc}
+[data-theme=dark] input::placeholder,[data-theme=dark] textarea::placeholder{color:#8795ac}
+[data-theme=dark] input:focus,[data-theme=dark] select:focus,[data-theme=dark] textarea:focus{outline-color:#1558c9;border-color:#d4ff24}
+[data-theme=dark] .nav-item{color:#a3afc3}
+[data-theme=dark] .nav-item.active{background:#1558c9;color:#fff}
+[data-theme=dark] .nav-item:hover{background:#182b49;color:#fff}
+[data-theme=dark] .nav-item.active .nav-symbol{color:#d4ff24}
+[data-theme=dark] .nav-caption,[data-theme=dark] .breadcrumb,[data-theme=dark] .profile small,[data-theme=dark] .small-note,[data-theme=dark] .status-dot,[data-theme=dark] .eyebrow,[data-theme=dark] .fine,[data-theme=dark] .muted,[data-theme=dark] .period-caption{color:#a3afc3}
+[data-theme=dark] .avatar{background:#1a2a45;color:#d4ff24}
+[data-theme=dark] .status-dot:before{background:#d4ff24}
+[data-theme=dark] .tag,[data-theme=dark] .metric-icon,[data-theme=dark] .metric-icon.sand,[data-theme=dark] .date-badge{background:#1b2940;color:#d4ff24}
+[data-theme=dark] .statistics{border-top-color:#d4ff24}
+[data-theme=dark] .range-buttons button{background:#131d2e;border-color:#34415a;color:#d3def1}
+[data-theme=dark] .range-buttons button.selected{background:#d4ff24;border-color:#d4ff24;color:#030407}
+[data-theme=dark] .stats-kpis article,[data-theme=dark] .time-kpis article,[data-theme=dark] .milestone,[data-theme=dark] .milestone.warm,[data-theme=dark] .goal-panel{background:#152036;color:#eaf0fa}
+[data-theme=dark] .stats-kpis .stat-total strong,[data-theme=dark] .time-kpis strong{color:#d4ff24}
+[data-theme=dark] .history-chart-panel{background:#0b111d;border-color:#263044}
+[data-theme=dark] .line-chart [role=button]:focus circle{stroke:#d4ff24}
+[data-theme=dark] .point-detail,[data-theme=dark] .form-total,[data-theme=dark] .proposal{background:#192c47;color:#edf4ff}
+[data-theme=dark] .year-card:hover{background:#192740}
+[data-theme=dark] .year-title span,[data-theme=dark] .goal-preview>div>span{color:#d4ff24}
+[data-theme=dark] .year-card>span:not(.year-title),[data-theme=dark] .year-card small,[data-theme=dark] .time-kpis small,[data-theme=dark] .milestone small,[data-theme=dark] .metric-card p,[data-theme=dark] .metric-footer,[data-theme=dark] .goal-preview small,[data-theme=dark] .goal-preview p,[data-theme=dark] .list-row small,[data-theme=dark] .entry-info small,[data-theme=dark] .entry-time{color:#a3afc3}
+[data-theme=dark] .year-card .year-change,[data-theme=dark] .balance{background:#20301c;color:#d4ff24}
+[data-theme=dark] .year-card .decrease,[data-theme=dark] .balance.negative{background:#35241e;color:#ffb99b}
+[data-theme=dark] .year-table thead,[data-theme=dark] .year-table tfoot{background:#192740;color:#eaf0fa}
+[data-theme=dark] .year-table tbody tr:hover,[data-theme=dark] .entry-row:hover{background:#182338}
+[data-theme=dark] .entry-row,[data-theme=dark] .metric-footer,[data-theme=dark] .summary-line{border-color:#263044}
+[data-theme=dark] .entry-row,[data-theme=dark] .metric-footer b{color:#eaf0fa}
+[data-theme=dark] progress,[data-theme=dark] progress::-webkit-progress-bar{background:#2b3850}
+[data-theme=dark] progress::-webkit-progress-value{background:#d4ff24}
+[data-theme=dark] progress::-moz-progress-bar{background:#d4ff24}
+[data-theme=dark] .calendar-day{background:#0b111d;border-color:#263044;color:#b0bdd2}
+[data-theme=dark] .calendar-day.has-entry{background:#13264a;border-color:#2356a3}
+[data-theme=dark] .calendar-day.today{box-shadow:inset 0 0 0 1px #d4ff24}
+[data-theme=dark] .calendar-day:hover{background:#1b365f}
+[data-theme=dark] .calendar-day strong{color:#edf3ff}
+[data-theme=dark] .weekday,[data-theme=dark] .empty,[data-theme=dark] .empty-small,[data-theme=dark] .date-badge small{color:#a3afc3}
+[data-theme=dark] .extra-tag{color:#d4ff24}
+[data-theme=dark] .alert,[data-theme=dark] .toast,[data-theme=dark] .demo-banner{background:#15294c;border-color:#31598f;color:#d3e3ff}
+[data-theme=dark] .alert.error{background:#351c24;border-color:#743344;color:#ffc1cb}
+[data-theme=dark] .danger{color:#ffa7ad}
+[data-theme=dark] .modal-backdrop{background:#030407b8}
+[data-theme=dark] footer,[data-theme=dark] footer>span,[data-theme=dark] footer>small,[data-theme=dark] .boot p{color:#a3afc3}
+[data-theme=dark] button:focus-visible,[data-theme=dark] a:focus-visible{outline-color:#d4ff24}
+[data-theme=dark] .check input{accent-color:#1558c9}
+@media(max-width:760px){[data-theme=dark] .sidebar{background:#0b101af5}.top-actions{flex-wrap:wrap;justify-content:flex-end}.theme-toggle{white-space:nowrap;font-size:11px;padding:7px 9px}}
