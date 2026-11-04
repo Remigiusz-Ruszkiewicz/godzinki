@@ -84,7 +84,12 @@
    }
    else if(page=="Rozliczenia"){
     <section class="settlement-grid"><article class="panel"><span class="eyebrow">CZAS → WYNAGRODZENIE</span><h2>Twoje rozliczenie miesiąca</h2>
-     <div class="summary-line"><span>Saldo w firmie</span><strong>@Duration(CompanyMinutes)</strong></div><div class="summary-line"><span>Praca dodatkowa</span><strong>@Duration(ExtraMinutes)</strong></div><div class="summary-line"><span>Proponowany czas do wypłaty</span><strong>@Duration(Math.Max(0,CompanyMinutes+ExtraMinutes))</strong></div>
+     @if(Current?.CalculationBasis=="legacy_excel"){
+      <div class="summary-line"><span>Czas do wypłaty z arkusza</span><strong>@Duration(Current.ApprovedMinutes??0)</strong></div>
+      <p class="fine">To historyczne rozliczenie. Kolumna G zawiera ręcznie przeniesione minuty z E, więc nie dodajemy ich ponownie.</p>
+     }else{
+      <div class="summary-line"><span>Saldo w firmie</span><strong>@Duration(CompanyMinutes)</strong></div><div class="summary-line"><span>Praca dodatkowa</span><strong>@Duration(ExtraMinutes)</strong></div><div class="summary-line"><span>Proponowany czas do wypłaty</span><strong>@Duration(Math.Max(0,CompanyMinutes+ExtraMinutes))</strong></div>
+     }
      <p class="fine">Przed zatwierdzeniem możesz zmienić czas, stawkę, premię i korektę. Ujemne saldo jest widoczne, ale propozycja wypłaty nie spada poniżej zera.</p>
      @if(RateChanges){<div class="alert">W tym miesiącu zmieniła się stawka. Ustal właściwą kwotę rozliczenia ręcznie.</div>}
      <button class="primary" @onclick="OpenSettlement">@(Current is null?"Przygotuj rozliczenie →":"Sprawdź / zmień rozliczenie →")</button>
@@ -111,7 +116,17 @@
     <section class="panel"><div class="panel-heading"><div><span class="eyebrow">TWOJE WARUNKI</span><h2>Historia stawek netto</h2></div><button class="primary" @onclick="()=>OpenRate()">＋ Nowa stawka</button></div><p class="muted">Zapisuj podwyżki z datą obowiązywania. Zatwierdzone rozliczenia zachowują własne stawki.</p>
     @foreach(var r in Store.Rates.OrderByDescending(x=>x.EffectiveFrom)){<div class="list-row"><span>Od @r.EffectiveFrom.ToString("dd.MM.yyyy")</span><div class="grow"><strong>@Money(r.BaseNet) / miesiąc</strong><small>@Money(r.HourlyNet) / dodatkową godzinę</small></div><button class="text-button" @onclick="()=>OpenRate(r)">Edytuj</button><button class="text-button danger" @onclick='()=>AskDelete(r,"pay_rates")'>Usuń</button></div>}
     </section>
-    <section class="panel"><h2>Twoje dane zostają Twoje.</h2><p>Pełny eksport JSON zawiera wpisy, stawki, rozliczenia, wypłaty, urlopy i cele. Zestawienie miesiąca CSV otworzysz w Excelu.</p><div class="button-row"><button class="secondary" @onclick="Export">Pobierz kopię JSON ↓</button><button class="secondary" @onclick="ExportCsv">Pobierz miesiąc CSV ↓</button></div><p class="fine">W tej wersji import istniejącego Excela i przywracanie kopii JSON nie są jeszcze dostępne.</p></section>
+    <section class="panel"><h2>Przenieś historię z Excela</h2><p>Wybierz przygotowany plik migracji <strong>dane-prywatne.json</strong>. Dane zostaną zapisane na Twoim koncie. Historyczne kwoty zachowują ręczne rozliczenia z arkusza.</p>
+     @if(Store.Demo){<p class="muted">Import jest dostępny po zalogowaniu na prawdziwe konto.</p>}
+     else {
+      <fieldset disabled="@busy"><label>Plik migracji<InputFile OnChange="SelectMigration" accept=".json,application/json" /></label>
+       @if(migration is not null){<p>@migrationSummary</p><button class="primary" @onclick="ImportMigration">Przenieś historię na moje konto</button>}
+      </fieldset>
+      @if(!string.IsNullOrEmpty(importProgress)){<p role="status">@importProgress</p>}
+      <p class="fine">Import nie nadpisuje istniejących wpisów. Po przerwaniu połączenia wybierz ponownie ten sam plik, aby dokończyć. Oryginalne wiersze i formuły pozostają w prywatnym archiwum konta.</p>
+     }
+    </section>
+    <section class="panel"><h2>Twoje dane zostają Twoje.</h2><p>Eksport JSON zawiera wpisy, stawki, rozliczenia, wypłaty, urlopy i cele. Zestawienie miesiąca CSV otworzysz w Excelu.</p><div class="button-row"><button class="secondary" @onclick="Export">Pobierz kopię JSON ↓</button><button class="secondary" @onclick="ExportCsv">Pobierz miesiąc CSV ↓</button></div><p class="fine">Zachowaj też oryginalny Excel i plik migracji: kopia JSON nie obejmuje archiwum surowych wierszy. Przywracanie kopii JSON nie jest jeszcze dostępne.</p></section>
     <section class="panel"><h2>Na wszystkich Twoich urządzeniach</h2><p>Na iPhonie otwórz docelowy adres w Safari i wybierz Udostępnij → Dodaj do ekranu początkowego. Na Macu i Windowsie użyj tego samego adresu i konta.</p><p class="fine">Zapisywanie i odczyt danych wymagają internetu. Automatyczna kolejka zmian offline jest planowana na kolejny etap.</p></section>
    }
    <footer>godzinki <span>Twój czas. Twoje wyniki.</span><small>@(Store.Demo?"Przestrzeń demonstracyjna":"Dane dostępne po zalogowaniu")</small></footer>
@@ -132,7 +147,13 @@
    else if(modal=="extra"){<div class="form-grid"><label>Data<input type="date" required @bind="extra.WorkDate" /></label><label>Czas (min)<input type="number" required min="1" @bind="extra.Minutes" @bind:event="oninput" /></label></div><label>Projekt / zadanie<input @bind="extra.ProjectName" placeholder="Nad czym pracowałeś?" @bind:event="oninput" /></label><label>Notatka<textarea @bind:event="oninput" @bind="extra.Notes" rows="3"></textarea></label><p class="fine">Wpisz wyłącznie dodatkową pracę. Saldem z firmy zajmie się rozliczenie miesiąca.</p>}
    else if(modal=="rate"){<label>Obowiązuje od<input type="date" required @bind="rate.EffectiveFrom" /></label><div class="form-grid"><label>Podstawa netto (zł)<input type="number" required min="0" step="0.01" @bind="rate.BaseNet" @bind:event="oninput" /></label><label>Dodatkowa godzina netto (zł)<input type="number" required min="0" step="0.01" @bind="rate.HourlyNet" @bind:event="oninput" /></label></div><label>Notatka<input @bind="rate.Notes" @bind:event="oninput" /></label>}
    else if(modal=="settlement"){
-    <p class="muted">@settlement.Month.ToString("MMMM yyyy") · stawki i czas zostaną zapisane jako osobne rozliczenie.</p><div class="proposal"><span>Firma: @Duration(settlement.CompanyMinutesSnapshot??0)</span><span>Dodatkowo: @Duration(settlement.ExtraMinutesSnapshot??0)</span><button type="button" class="text-button" @onclick="RefreshProposal">Pobierz aktualny czas</button></div>
+    <p class="muted">@settlement.Month.ToString("MMMM yyyy") · stawki i czas zostaną zapisane jako osobne rozliczenie.</p>
+    @if(settlement.CalculationBasis=="legacy_excel"){
+     <div class="alert">Historia z Excela: zachowano końcowy czas do wypłaty. Nie przeliczamy go automatycznie z wpisów dziennych.</div>
+     <p style="white-space:pre-line">@settlement.Notes</p>
+    }else{
+     <div class="proposal"><span>Firma: @Duration(settlement.CompanyMinutesSnapshot??0)</span><span>Dodatkowo: @Duration(settlement.ExtraMinutesSnapshot??0)</span><button type="button" class="text-button" @onclick="RefreshProposal">Pobierz aktualny czas</button></div>
+    }
     <label>Czas do wypłaty (min)<input type="number" required min="0" @bind="settlement.ApprovedMinutes" @bind:event="oninput" /></label><div class="form-grid"><label>Podstawa netto (zł)<input type="number" required min="0" step="0.01" @bind="settlement.BaseNetSnapshot" @bind:event="oninput" /></label><label>Stawka za godzinę netto (zł)<input type="number" required min="0" step="0.01" @bind="settlement.HourlyNetSnapshot" @bind:event="oninput" /></label><label>Premia netto (zł)<input type="number" step="0.01" @bind="settlement.BonusNet" @bind:event="oninput" /></label><label>Korekta kwoty netto (zł)<input type="number" step="0.01" @bind="settlement.CorrectionNet" @bind:event="oninput" /></label></div>
     <label>Powód korekty czasu<input @bind="settlement.CorrectionReason" placeholder="Np. zaokrąglenie do pół godziny" @bind:event="oninput" /></label><div class="form-total"><span>Razem netto</span><strong>@Money(Payroll.Total(settlement))</strong></div><p class="fine">To zapis należności. Faktyczne otrzymanie pieniędzy oznaczysz osobno.</p>
    }

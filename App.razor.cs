@@ -2,10 +2,13 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Components.Forms;
 namespace Godzinki;
 public partial class App {
  string page="Pulpit", modal="", email="",password="",authMode="login",notice="",error="";
  bool initialized,busy; DateOnly month=new(DateTime.Today.Year,DateTime.Today.Month,1);
+ JsonObject? migration; string migrationSummary="",importProgress="";
  WorkDay work=new();ExtraWork extra=new();PayRate rate=new();Settlement settlement=new();Payment payment=new();LeaveEntry leave=new();Goal goal=new();
  string start="",end="";int? manualMinutes; Row? deleting;string deleteTable="";
  readonly string[] pages=["Pulpit","Kalendarz","Rozliczenia","Urlopy","Cele","Ustawienia"];
@@ -30,7 +33,7 @@ public partial class App {
  string DayType(string k)=>k switch {"work"=>"Praca","leave"=>"Urlop","off"=>"Wolne","holiday"=>"Święto","sick"=>"Chorobowe","business_trip"=>"Delegacja",_=>k};
  string Initials=>Store.Demo?"DE":(Store.Session?.User.Email.FirstOrDefault().ToString().ToUpperInvariant()??"JA");
  protected override async Task OnAfterRenderAsync(bool first) {
-  if(first){await Act(Store.Initialize);initialized=true;StateHasChanged();}
+  if(first){await Act(Store.Initialize);ShowLatestHistory();initialized=true;StateHasChanged();}
  }
  async Task Act(Func<Task> action,string success="") {
   if(busy)return;busy=true;error="";notice="";
@@ -41,9 +44,28 @@ public partial class App {
   if(authMode=="register") {
    if(password.Length<8){error="Hasło musi mieć przynajmniej 8 znaków.";return;}
    await Act(()=>Store.Register(email.Trim(),password,Nav.BaseUri),"Sprawdź pocztę i potwierdź adres, a następnie zaloguj się. Jeśli konto już istnieje, użyj logowania.");
-  } else await Act(()=>Store.Login(email.Trim(),password));
+  } else {await Act(()=>Store.Login(email.Trim(),password));ShowLatestHistory();}
   password="";
  }
+ void ShowLatestHistory() {
+  if(!Store.Demo && Current is null && !MonthDays.Any() && Store.Settlements.Count>0)
+   month=Store.Settlements.Max(x=>x.Month);
+ }
+ async Task SelectMigration(InputFileChangeEventArgs e)=>await Act(async()=>{
+  migration=null;migrationSummary="";importProgress="";
+  using var stream=e.File.OpenReadStream(20*1024*1024);
+  var candidate=await JsonNode.ParseAsync(stream) as JsonObject;
+  if(candidate?["format"]?.GetValue<string>()!="godzinki-migration-v1" || candidate["tables"] is not JsonObject tables)
+   throw new Exception("Wybierz przygotowany plik dane-prywatne.json.");
+  int Count(string key)=>(tables[key] as JsonArray)?.Count??0;
+  migrationSummary=$"{Count("work_days")} dni pracy, {Count("settlements")} rozliczeń, {Count("pay_rates")} stawek i {Count("leave_ledger")} wpisów urlopowych.";
+  migration=candidate;
+ });
+ async Task ImportMigration()=>await Act(async()=>{
+  if(migration is null)return;
+  await Store.ImportHistory(migration,async message=>{importProgress=message;await InvokeAsync(StateHasChanged);});
+  migration=null;migrationSummary="";importProgress="";ShowLatestHistory();page="Pulpit";
+ },"Historia została przeniesiona na Twoje konto. Wyświetlam ostatni zapisany miesiąc.");
  void Demo(){Store.StartDemo();page="Pulpit";error="";notice=""; }
  async Task Logout(){await Act(Store.Logout);page="Pulpit";modal="";password="";}
  void MoveMonth(int offset){month=month.AddMonths(offset);error="";notice="";}

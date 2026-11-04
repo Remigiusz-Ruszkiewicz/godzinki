@@ -149,6 +149,46 @@ public sealed class DataStore(HttpClient http, IConfiguration config, IJSRuntime
  public async Task Delete<T>(string table,T row) where T:Row {
   var copy=Clone(row); copy.DeletedAt=DateTimeOffset.UtcNow; await Save(table,copy);
  }
+ public async Task ImportHistory(JsonObject package,Func<string,Task> progress) {
+  if(Demo || Session is null) throw new Exception("Zaloguj się na swoje konto, aby przenieść historię.");
+  if(package["format"]?.GetValue<string>()!="godzinki-migration-v1" || package["tables"] is not JsonObject tables)
+   throw new Exception("Wybierz przygotowany plik migracji Godzinek.");
+  if(!string.Equals(package["owner_email"]?.GetValue<string>(),Session.User.Email,StringComparison.OrdinalIgnoreCase))
+   throw new Exception("Plik przygotowano dla innego adresu e-mail. Zaloguj się na właściwe konto.");
+  string[] allowed=["import_rows","pay_rates","work_days","settlements","leave_ledger"];
+  if(tables.Any(t=>!allowed.Contains(t.Key))) throw new Exception("Plik zawiera nieobsługiwany rodzaj danych.");
+  // Validate the whole package before sending the first batch. The database enforces
+  // row ownership and field constraints; imports never update existing records.
+  foreach(var table in tables) {
+   if(table.Value is not JsonArray rows) throw new Exception("Nieprawidłowy plik migracji.");
+   var ids=new HashSet<Guid>();
+   foreach(var item in rows) {
+    if(item is not JsonObject row || !Guid.TryParse(row["id"]?.GetValue<string>(),out var id) || !ids.Add(id))
+     throw new Exception("Brak identyfikatora lub powtórzony wpis w pliku migracji.");
+    row["user_id"]=Session.User.Id.ToString();
+    foreach(var key in new[]{"version","created_at","updated_at","deleted_at","total_net"}) row.Remove(key);
+   }
+  }
+  int done=0,total=tables.Sum(t=>((JsonArray)t.Value!).Count);
+  try {
+   foreach(var table in allowed) {
+    if(tables[table] is not JsonArray rows) continue;
+    for(int offset=0;offset<rows.Count;offset+=100) {
+     await Token();
+     var batch=new JsonArray(rows.Skip(offset).Take(100).Select(r=>r!.DeepClone()).ToArray());
+     using var req=Make(HttpMethod.Post,$"/rest/v1/mp_{table}?on_conflict=id",batch);
+     req.Headers.Authorization=new("Bearer",Session!.AccessToken);
+     req.Headers.Add("Prefer","resolution=ignore-duplicates,return=minimal");
+     using var res=await http.SendAsync(req); await Ensure(res);
+     done+=batch.Count;await progress($"Przenoszenie historii: {done} / {total} wpisów…");
+    }
+   }
+   await Reload();
+   if(LoadError is not null) throw new Exception(LoadError);
+  } catch(Exception e) {
+   throw new Exception($"Import zatrzymany po {done} / {total} wpisów. Zapisane partie pozostają na koncie. Możesz ponownie wybrać ten sam plik — nie nadpisze ani nie powieli zapisanych wpisów. {e.Message}");
+  }
+ }
  public static T Clone<T>(T row) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(row,Json),Json)!;
  void DemoSave<T>(T row) where T:Row {
   var saved=Clone(row); saved.Version++;

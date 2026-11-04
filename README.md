@@ -18,17 +18,29 @@ Konto panelu administracyjnego Supabase nie jest kontem aplikacji.
 - Czas przez północ, przerwy, ujemne saldo i ręczne nadpisanie salda.
 - Historyczne stawki netto; ręcznie zatwierdzane miesięczne migawki rozliczeń.
 - Premie i korekty, rzeczywiste wypłaty, księga urlopów, cele.
-- Eksport JSON i miesięczny CSV.
+- Eksport JSON i miesięczny CSV; import przygotowanego prywatnego pakietu historii.
 - Zapis z kontrolą wersji; konflikt nie nadpisuje bez ostrzeżenia drugiego urządzenia.
 
 ## Granice wersji
 Zapis i odczyt danych wymagają internetu. PWA po publikacji buforuje pliki aplikacji,
 ale nie implementuje kolejki zmian offline. Zmiana danych na drugim urządzeniu
-jest widoczna po odświeżeniu. Brak stoperów, powiadomień, importu Excela oraz
+jest widoczna po odświeżeniu. Brak stoperów, powiadomień, bezpośredniego odczytu XLSX oraz
 przywracania JSON. Zatwierdzone rozliczenia nie zmieniają się po edycji dni.
 Urlop w kalendarzu i księga puli urlopowej są oddzielne; formularz to wyjaśnia.
 Pełna podstawa w szacunku miesiąca nie oznacza kwoty zarobionej do dzisiaj.
 Cel earned agreguje rozliczenia według pierwszego dnia miesiąca; paid według dat wpłat.
+
+## Migracja historii
+W Ustawieniach zalogowany użytkownik może wybrać prywatny plik w formacie
+`godzinki-migration-v1`. Pakiet musi być przygotowany dla adresu konta.
+Import wysyła partie po 100 wpisów do Supabase, zapisuje archiwum źródła i nie
+nadpisuje istniejących rekordów. Po przerwaniu można ponowić ten sam pakiet.
+Zapis nie jest transakcją obejmującą cały plik; wcześniejsze partie pozostają zapisane.
+Konflikt daty z innym wpisem zatrzymuje import i wymaga rozstrzygnięcia.
+Rozliczenia `legacy_excel` zachowują ręczny czas i kwoty; nie sumują ponownie E i G.
+Prywatne pakiety, oryginalne arkusze i hasła muszą pozostawać poza repozytorium
+i poza katalogiem publikowanym na Pages. Eksport aplikacji nie zawiera surowego
+archiwum importu, dlatego należy zachować oryginał i pakiet migracji.
 
 ## Konfiguracja Supabase
 Adres i klucz publishable są w wwwroot/appsettings.json, zgodnie z przeznaczeniem
